@@ -26,7 +26,7 @@ int main(int argc, char** argv)
     char buf[MAX];
     int i, sum = 0, speed = 0;
     
-    if ( (argc < 2) || 
+    /*  if ( (argc < 2) || 
   	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
   	      (strcmp("/dev/ttyS1", argv[1])!=0) )) {
       printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
@@ -88,20 +88,20 @@ int main(int argc, char** argv)
     printf("String: %s\n", str);
 
     res = write(fd,str,count);   
-    printf("%d bytes written\n", res-1);
+    printf("%d bytes written\n", res);
 
     int j=0;
     double time_spent;
     clock_t begin = clock();
     time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
 
-    while(j<3){
+    while(j<4){
       if(time_spent < 3.0){
         while (STOP == FALSE)
         {
           nr += read(fd, aux, 1);
           recebido[nr-1] = aux[0];
-          if(aux[0] == '\0') STOP == TRUE;
+          if(aux[0] == '\0') STOP = TRUE;
         }   
         printf("Mensagem recebida: %s\n", recebido);
         printf("%d bytes recebidos\n", nr); 
