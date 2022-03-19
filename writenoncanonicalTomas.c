@@ -95,7 +95,7 @@ int main(int argc, char** argv)
     clock_t begin = clock();
     time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
 
-    while(j<4){
+    while(j<3){
       if(time_spent < 3.0){
         while (STOP == FALSE)
         {
