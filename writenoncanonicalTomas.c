@@ -83,12 +83,12 @@ int main(int argc, char** argv)
     int count = 0, nr = 0;
     printf("Enter a string: ");
     fgets(str, MAX, stdin);
-    count = strlen(str);
+    count = strlen(str)+1;
 
     printf("String: %s\n", str);
 
     res = write(fd,str,count);   
-    printf("%d bytes written\n", res);
+    printf("%d bytes written\n", res-1);
 
     int j=0;
     double time_spent;
