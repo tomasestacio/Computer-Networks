@@ -1,12 +1,16 @@
 /*Non-Canonical Input Processing*/
 
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <fcntl.h>
 #include <termios.h>
+#include <time.h>
 #include <stdio.h>
-#include <string.h>
+#include <unistd.h>
 
+#define MAX 255
 #define BAUDRATE B38400
 #define MODEMDEVICE "/dev/ttyS1"
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
@@ -19,7 +23,7 @@ int main(int argc, char** argv)
 {
     int fd, c, res;
     struct termios oldtio,newtio;
-    char buf[255];
+    char buf[MAX];
     int i, sum = 0, speed = 0;
     
     if ( (argc < 2) || 
@@ -59,7 +63,7 @@ int main(int argc, char** argv)
 
   /* 
     VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a 
-    leitura do(s) próximo(s) caracter(es)
+    leitura do(s) prï¿½ximo(s) caracter(es)
   */
 
 
@@ -73,31 +77,44 @@ int main(int argc, char** argv)
 
     printf("New termios structure set\n");
 
-    char str[255];
-    char recebido[255];
-    int count = 0, nr = 0, i = 0;
+    char str[MAX];
+    char recebido[MAX];
+    char aux[MAX];
+    int count = 0, nr = 0;
     printf("Enter a string: ");
-    fgets(str, 255, stdin);
-    count = strlen(str)+1;
-    //str[strlen(str)] = '\0';
-        
+    fgets(str, MAX, stdin);
+    count = strlen(str);
+
     printf("String: %s\n", str);
-    /*testing*/
-    //buf[25] = '\n';
-    
+
     res = write(fd,str,count);   
     printf("%d bytes written\n", res);
-    while(STOP == TRUE)
-    {
-        i = read(fd, recebido, 255);
-        if(recebido[i-1] == '\0') STOP = FALSE;
-    }   
-    printf("Mensagem recebida: %s\n", recebido);
- 
 
+    int j=0;
+    double time_spent;
+    clock_t begin = clock();
+    time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+
+    while(j<3){
+      if(time_spent < 3.0){
+        while (STOP == FALSE)
+        {
+          nr += read(fd, aux, 1);
+          recebido[nr-1] = aux[0];
+          if(aux[0] == '\0') STOP == TRUE;
+        }   
+        printf("Mensagem recebida: %s\n", recebido);
+        printf("%d bytes recebidos\n", nr); 
+        if(recebido != NULL) break;
+      }
+      else{
+        alarm(3);
+        j++;
+      }
+    }
   /* 
-    O ciclo FOR e as instruções seguintes devem ser alterados de modo a respeitar 
-    o indicado no guião 
+    O ciclo FOR e as instruï¿½ï¿½es seguintes devem ser alterados de modo a respeitar 
+    o indicado no guiï¿½o 
   */
 
 
