@@ -83,7 +83,7 @@ int main(int argc, char** argv)
     //char str[MAX];
     char recebido[MAX];
     unsigned char aux[MAX];
-    //int count = 0;
+    int count = 0;
     int nr = 0;
     /*printf("Enter a string: ");
     fgets(str, MAX, stdin);
@@ -98,6 +98,14 @@ int main(int argc, char** argv)
 
     res = write(fd,buf,5);   
     printf("%d bytes written\n", res);
+    while(count != 3){
+      if(res != 5){
+        res = write(fd,buf,5);
+        count++;
+      }
+      else break;
+    }
+    count=0;
 
     int total=0;
 
@@ -117,65 +125,45 @@ int main(int argc, char** argv)
       case 1:
       nr = read(fd, &aux[0], 1);
       total += nr;
-      if(aux[0] == buf[0]){
-        state = 2;
-      }
-      else{
-        break;
-      }
-
+      if(aux[0] == buf[0]) state = 2;
+      else break;
+      
       case 2:
       nr = read(fd, &aux[1], 1);
       total += nr;
-      if(aux[1] == buf[0]){
-        state = 2;
-      }
-      else if(aux[1] == buf[1]){
-        state = 3;
-      }
-      else{
-        state = 1;
-      }
-
+      if(aux[1] == buf[0]) state = 2;
+      else if(aux[1] == buf[1]) state = 3;
+      else state = 1;
+  
       case 3:
       nr = read(fd, &aux[2], 1);
       total += nr;
-      if(aux[2] == buf[2]){
-        state = 4;
-      }
-      else if(aux[2] == buf[0]){
-        state = 2;
-      }
-      else{
-        state = 1;
-      }
+      if(aux[2] == buf[2]) state = 4;
+      else if(aux[2] == buf[0]) state = 2;
+      else state = 1;
 
       case 4:
       nr = read(fd, &aux[3], 1);
       total += nr;
-      if(aux[3] == buf[3]){
-        state = 5;
-      }
-      else if(aux[3] == buf[0]){
-        state = 2;
-        break;
-      }
-      else{
-        state = 1;
-      }
+      if(aux[3] == buf[3]) state = 5;
+      else if(aux[3] == buf[0]) state = 2;
+      else state = 1;
 
       case 5:
       nr = read(fd, &aux[4], 1);
       total += nr;
-      if(aux[4] == buf[4]){
-        state = 6;
-      }
-      else{
-        state = 1;
-      }
+      if(aux[4] == buf[4]) state = 6;
+      else state = 1;
 
       case 6:
-      break;
+      while(count != 3){
+        if(total != 5){
+          state = 1;
+          count++; 
+        }
+        else break;
+      }
+      if(state == 6) break;
     }
     printf("RETURN: %X:%X:%X:%X:%X\n", aux[0], aux[1], aux[2], aux[3], aux[4]);
   /* 
