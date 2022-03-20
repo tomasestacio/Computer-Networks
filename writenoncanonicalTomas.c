@@ -82,8 +82,9 @@ int main(int argc, char** argv)
 
     //char str[MAX];
     char recebido[MAX];
-    char aux;
-    int count = 0, nr = 0;
+    unsigned char aux[MAX];
+    //int count = 0;
+    int nr = 0;
     /*printf("Enter a string: ");
     fgets(str, MAX, stdin);
     count = strlen(str)+1;
@@ -93,6 +94,7 @@ int main(int argc, char** argv)
     buf[1] = A;
     buf[2] = C;
     buf[3] = BCC;
+    buf[4] = FLAG;
 
     res = write(fd,buf,5);   
     printf("%d bytes written\n", res);
@@ -113,80 +115,69 @@ int main(int argc, char** argv)
     switch (state)
     {
       case 1:
-      nr = read(fd, &aux, 1);
+      nr = read(fd, &aux[0], 1);
       total += nr;
-      if(aux == buf[0]){
+      if(aux[0] == buf[0]){
         state = 2;
-        break;
       }
       else{
         break;
       }
 
       case 2:
-      nr = read(fd, &aux, 1);
+      nr = read(fd, &aux[1], 1);
       total += nr;
-      if(aux == buf[0]){
+      if(aux[1] == buf[0]){
         state = 2;
-        break;
       }
-      else if(aux == buf[1]){
+      else if(aux[1] == buf[1]){
         state = 3;
-        break;
       }
       else{
         state = 1;
-        break;
       }
 
       case 3:
-      nr = read(fd, &aux, 1);
+      nr = read(fd, &aux[2], 1);
       total += nr;
-      if(aux == buf[2]){
+      if(aux[2] == buf[2]){
         state = 4;
-        break;
       }
-      else if(aux == buf[0]){
+      else if(aux[2] == buf[0]){
         state = 2;
-        break;
       }
       else{
         state = 1;
-        break;
       }
 
       case 4:
-      nr = read(fd, &aux, 1);
+      nr = read(fd, &aux[3], 1);
       total += nr;
-      if(aux == buf[3]){
+      if(aux[3] == buf[3]){
         state = 5;
-        break;
       }
-      else if(aux == buf[0]){
+      else if(aux[3] == buf[0]){
         state = 2;
         break;
       }
       else{
         state = 1;
-        break;
       }
 
       case 5:
-      nr = read(fd, &aux, 1);
+      nr = read(fd, &aux[4], 1);
       total += nr;
-      if(aux == buf[0]){
+      if(aux[4] == buf[4]){
         state = 6;
-        break;
       }
       else{
         state = 1;
-        break;
       }
 
       case 6:
       break;
     }
-    
+    printf("RETURN: %X:%X:%X:%X:%X\n", aux[0], aux[1], aux[2], aux[3], aux[4]);
   /* 
     O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 
     o indicado no gui�o 
