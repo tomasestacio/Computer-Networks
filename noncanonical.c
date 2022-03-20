@@ -92,25 +92,26 @@ int main(int argc, char** argv)
 
     //}
 
-   char aux;
+   //char aux;
 
    //CONSIDERANDO QUE O READ LÊ DE 1 EM 1 BYTE
+  int index = 0;
 
-   while (STOP == FALSE)
-   {
-     res += read(fd, &aux, 1);
-     printf(":%c:%d\n", aux, res);
-     buf[res-1] = aux;
-     if(aux == '\0') STOP = TRUE;
-   }
- 
+  while (STOP == FALSE)
+  {
+    res = read(fd, &buf[index], 1);
+    printf(":%X:%d\n", buf[index], index+1);
+    index++;
+    if(index == 5) STOP = TRUE;
+  }
+
   //O ciclo WHILE deve ser alterado de modo a respeitar o indicado no gui�o 
 
-  int nr=0;
+  /*int nr=0;
 	unsigned int t = 0;
-	unsigned int nr_char = 0;
+	unsigned int nr_char = 0;*/
 
-	res = write(fd, buf, strlen(buf) + 1);
+	res = write(fd,buf,index);
 	printf("(%d bytes written)\n", res);
 	res = 0;
   //i=0;
