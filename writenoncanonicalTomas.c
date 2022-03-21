@@ -96,16 +96,15 @@ int main(int argc, char** argv)
     buf[3] = BCC;
     buf[4] = FLAG;
 
-    res = write(fd,buf,5);   
-    printf("%d bytes written\n", res);
-    while(count != 3){
+    while(count < 3){
+      res = write(fd,buf,5);   
       if(res != 5){
-        res = write(fd,buf,5);
         count++;
+        alarm(3);
       }
       else break;
     }
-    count=0;
+    printf("%d bytes written\n", res);
 
     int total=0;
 
@@ -160,6 +159,7 @@ int main(int argc, char** argv)
         if(total != 5){
           state = 1;
           count++; 
+          alarm(3);
         }
         else break;
       }
