@@ -104,6 +104,7 @@ int main(int argc, char** argv)
       }
       else break;
     }
+    if(count == 3) return 0;
     printf("%d bytes written\n", res);
 
     int total=0;
@@ -155,7 +156,7 @@ int main(int argc, char** argv)
       else state = 1;
 
       case 6:
-      while(count != 3){
+      while(count < 3){
         if(total != 5){
           state = 1;
           count++; 
@@ -164,7 +165,9 @@ int main(int argc, char** argv)
         else break;
       }
       if(state == 6) break;
+      else if(count == 3) return 0;
     }
+
     printf("RETURN: %X:%X:%X:%X:%X\n", aux[0], aux[1], aux[2], aux[3], aux[4]);
   /* 
     O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 
