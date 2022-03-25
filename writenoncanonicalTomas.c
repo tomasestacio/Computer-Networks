@@ -28,11 +28,10 @@ volatile int STOP=FALSE;
 
 //fazer funçao para controlar alarme -> signal, flag = false qnd alarme ativado
 
-void control_alarm()
-{
-    STOP = TRUE;
-    tentat++;
-    return;
+void control_alarm(){
+  STOP = TRUE;
+  tentat++;
+  return;
 }
 
 int main(int argc, char** argv)
@@ -42,7 +41,7 @@ int main(int argc, char** argv)
     unsigned char buf[MAX];
     int i, sum = 0, speed = 0;
     
-    if ( (argc < 2) || 
+  /*  if ( (argc < 2) || 
   	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
   	      (strcmp("/dev/ttyS1", argv[1])!=0) )) {
       printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
@@ -71,7 +70,7 @@ int main(int argc, char** argv)
     newtio.c_lflag = 0;
      
     newtio.c_cc[VTIME]    = 30;   /* inter-character timer unused */
-    newtio.c_cc[VMIN]     = 0;   /* blocking read until 5 chars received */
+    newtio.c_cc[VMIN]     = 1;   /* blocking read until 5 chars received */
 
 
 
@@ -105,24 +104,18 @@ int main(int argc, char** argv)
     buf[3] = BCC;
     buf[4] = FLAG;
 
-    int j = 0;
-    int count = 0;
-    //mudar isto, write nao precisa de verificar STOP
-    while(tentat < 3 && charcount != 5){   
-      res = write(fd,&buf[j],1); 
-      charcount += res;   
-      j++;
-      if(STOP == TRUE){
-        if(tentat == 3){
-            close(fd);
-            return 0;
-        }
-        alarm(3);
-        tcflush(fd, TCIOFLUSH);
-        j = 0;
-        charcount = 0;  
+    int nr = 0;
+ 
+    res = write(fd,buf,5);  
+    /*if(STOP == TRUE){
+      alarm(3);
+      tcflush(fd, TCIOFLUSH);
+      if(tentat == 3){
+        close(fd);
+        return 0;
       }
-    }
+    }*/
+
     printf("%d bytes written\n", res);
 
     int total=0;
@@ -137,65 +130,76 @@ int main(int argc, char** argv)
       printf("Mensagem recebida: %s\n", recebido);
       printf("%d bytes recebidos\n", nr); 
     }*/
-    while(tentat < 3){
+
+    while(tentat <= 3){
         switch (state)
         {   
-            case 1:
-            nr = read(fd, &aux[0], 1);
-            total += nr;
-            if(STOP == TRUE) state = 7;
-            if(aux[0] == buf[0]) state = 2;
-            else tcflush(fd, TCIOFLUSH);
+          case 1:
+          nr = read(fd, &aux[0], 1);
+          total += nr;
+          if(STOP == TRUE) state = 7;
+          if(aux[0] == buf[0]) state = 2;
+          else tcflush(fd, TCIOFLUSH);
       
-            case 2:
-            nr = read(fd, &aux[1], 1);
-            total += nr;
-            if(STOP == TRUE) state = 7;
-            if(aux[1] == buf[1]) state = 3;
-            else{
-                tcflush(fd, TCIOFLUSH);
-                state = 1;
-            }
+          case 2:
+          nr = read(fd, &aux[1], 1);
+          total += nr;
+          if(STOP == TRUE) state = 7;
+          if(aux[1] == buf[1]) state = 3;
+          else{
+            tcflush(fd, TCIOFLUSH);
+            state = 1;
+          }
   
-            case 3:
-            nr = read(fd, &aux[2], 1);
-            total += nr;
-            if(STOP == TRUE) state = 7;
-            if(aux[2] == buf[2]) state = 4;
-            else{
-                tcflush(fd, TCIOFLUSH);
-                state = 1;
-            }
+          case 3:
+          nr = read(fd, &aux[2], 1);
+          total += nr;
+          if(STOP == TRUE) state = 7;
+          if(aux[2] == buf[2]) state = 4;
+          else{
+            tcflush(fd, TCIOFLUSH);
+            state = 1;
+          }
 
-            case 4:
-            nr = read(fd, &aux[3], 1);
-            total += nr;
-            if(STOP == TRUE) state = 7;
-            if(aux[3] == buf[3]) state = 5;
-            else{
-                tcflush(fd, TCIOFLUSH);
-                state = 1;
-            }
+          case 4:
+          nr = read(fd, &aux[3], 1);
+          total += nr;
+          if(STOP == TRUE) state = 7;
+          if(aux[3] == buf[3]) state = 5;
+          else{
+            tcflush(fd, TCIOFLUSH);
+            state = 1;
+          }
 
-            case 5:
-            nr = read(fd, &aux[4], 1);
-            total += nr;
-            if(STOP == TRUE) state = 7;
-            if(aux[4] == buf[4]) state = 6;
-            else{
-                tcflush(fd, TCIOFLUSH);
-                state = 1;
-            }
+          case 5:
+          nr = read(fd, &aux[4], 1);
+          total += nr;
+          if(STOP == TRUE) state = 7;
+          if(aux[4] == buf[4]) state = 6;
+          else{
+            tcflush(fd, TCIOFLUSH);
+            state = 1;
+          }
 
-            case 6:
-            
-            
-            case 7:
-             
+          case 6:
+          if(total == 5) break;
+          else if(STOP == TRUE) state = 7;
+          else{
+            tcflush(fd, TCIOFLUSH);
+            state = 1;
+          }
+        
+          case 7:
+          alarm(3);
+          tcflush(fd, TCIOFLUSH);
+          if(tentat == 3){
+            close(fd);
+            return 0;
+          }
          }
     }
     
-    printf("RETURN: %X:%X:%X:%X:%X\n", aux[0], aux[1], aux[2], aux[3], aux[4]);
+    printf("SET: %X:%X:%X:%X:%X\n", aux[0], aux[1], aux[2], aux[3], aux[4]);
   /* 
     O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 
     o indicado no gui�o 
