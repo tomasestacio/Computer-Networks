@@ -23,16 +23,16 @@
 #define BCC A_SE^C
 
 int state=1;
-int tentat=0;
+int tentat=1;
 
 volatile int STOP=FALSE;
 
 //fazer funçao para controlar alarme -> signal, flag = false qnd alarme ativado
 
 void control_alarm(){
-  STOP = TRUE;
   tentat++;
-  printf("TENT#1: %d\n", tentat);
+  printf("TENTATIVAS: %d\n", tentat);
+  STOP = FALSE;
   return;
 }
 
@@ -41,7 +41,7 @@ int main(int argc, char** argv)
     int fd, c, res;
     struct termios oldtio,newtio;
     unsigned char buf[MAX];
-    int i, sum = 0, speed = 0;
+    int sum = 0, speed = 0;
     
   /*  if ( (argc < 2) || 
   	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
@@ -91,8 +91,6 @@ int main(int argc, char** argv)
     }
 
     printf("New termios structure set\n");
-    
-    (void) signal(SIGALRM, control_alarm); //controlar o alarme (inserir interrupçao no sistema)
 
     /*printf("Enter a string: ");
     fgets(str, MAX, stdin);
@@ -108,109 +106,63 @@ int main(int argc, char** argv)
     int nr = 0;
  
     res = write(fd,buf,5);  
-    /*if(STOP == TRUE){
-      alarm(3);
-      tcflush(fd, TCIOFLUSH);
-      if(tentat == 3){
-        close(fd);
-        return 0;
-      }
-    }*/
 
     printf("%d bytes written\n", res);
     printf("SET: 0X%X:0X%X:0X%X:0X%X:0X%X\n", buf[0], buf[1], buf[2], buf[3], buf[4]);
 
     int total=0;
+    int i=0;
 
-   /* while(j<3){
-      while (STOP == FALSE)
-      {
-        nr += read(fd, &aux, 1);
-        recebido[nr-1] = aux;
-        if(aux == '\0') STOP = TRUE;
-      }   
-      printf("Mensagem recebida: %s\n", recebido);
-      printf("%d bytes recebidos\n", nr); 
-    }*/
-
-    switch (state)
-    {   
-      case 1:
-      nr = read(fd, &buf[0], 1);
-      total += nr;
-      if(STOP == TRUE) state = 7;
-      if(buf[0] == (unsigned char) FLAG){
-        printf("OLA: %X\n", buf[0]);
-        state = 2;
-      }
-      else tcflush(fd, TCIOFLUSH);
-      
-      case 2:
-      nr = read(fd, &buf[1], 1);
-      total += nr;
-      if(STOP == TRUE) state = 7;
-      if(buf[1] == (unsigned char)A_RC) state = 3;
-      else{
-        tcflush(fd, TCIOFLUSH);
-        state = 1;
-      }
-  
-      case 3:
-      nr = read(fd, &buf[2], 1);
-      total += nr;
-      if(STOP == TRUE) state = 7;
-      if(buf[2] == (unsigned char)C) state = 4;
-      else{
-        tcflush(fd, TCIOFLUSH);
-        state = 1;
-      }
-
-      case 4:
-      nr = read(fd, &buf[3], 1);
-      total += nr;
-      if(STOP == TRUE) state = 7;
-      if(buf[3] == (unsigned char)BCC) state = 5;
-      else{
-        tcflush(fd, TCIOFLUSH);
-        state = 1;
-      }
-
-      case 5:
-      nr = read(fd, &buf[4], 1);
-      total += nr;
-      if(STOP == TRUE) state = 7;
-      if(buf[4] == (unsigned char)FLAG) state = 6;
-      else{
-        tcflush(fd, TCIOFLUSH);
-        state = 1;
-      }
-
-      case 6:
-      if(total == 5) break;
-      else if(STOP == TRUE) state = 7;
-      else{
-        tcflush(fd, TCIOFLUSH);
-        state = 1;
-      }
-        
-      case 7:
-      if(tentat == 3){
-        alarm(3);
-        tcflush(fd, TCIOFLUSH);
-        close(fd);
-        return 0;
-      }
-      alarm(3);
-      tcflush(fd, TCIOFLUSH);
-      state = 1;
+    if(tentat == 4){
+      close(fd);
+      return 0;
     }
-    
+
+    (void) signal(SIGALRM, control_alarm);
+    while(tentat <= 3 && state != 6){
+      if(STOP == FALSE){
+        alarm(3);
+        printf("3 SECONDS TIMEOUT MAKING...\n");
+        STOP = TRUE;
+      }
+      nr = read(fd, &buf[i], 1);
+      total += nr; 
+      i++;
+      switch (state)
+      {
+        case 1:
+        if(buf[0] == FLAG) state = 2;
+        else i--;
+        break;
+
+        case 2:
+        if(buf[1] == A_RC) state = 3;
+        else i--;
+        break;
+
+        case 3:
+        if(buf[2] == C) state = 4;
+        else i--;
+        break;
+
+        case 4:
+        if(buf[3] == BCC) state = 5;
+        else i--;
+        break;
+
+        case 5:
+        if(buf[4] == FLAG) state = 6;
+        else i--;
+        break;
+      }
+    }
+
   /* 
     O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 
     o indicado no gui�o 
   */
 
-  bzero(buf,255); //limpar o char buf
+  bzero(buf,MAX); //limpar o char buf
 
   if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
     perror("tcsetattr");
