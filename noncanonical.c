@@ -22,14 +22,14 @@
 #define BCC A_RC^C
 
 int state=1;
-int tentat=0;
+int tentat=1;
 
 volatile int STOP=FALSE;
 
 void control_alarm(){
   STOP = TRUE;
-  tentat++;
   printf("TENT#1: %d\n", tentat);
+  tentat++;
   return;
 }
 
@@ -125,74 +125,44 @@ int main(int argc, char** argv)
   }*/
   
 
-  switch(state)
-  {
-    case 1:
-    nr = read(fd, &buf[0], 1);
-    total += nr;
-    if(STOP == TRUE) state = 7;
-    if(buf[0] == (unsigned char)FLAG) state = 2;
-    else tcflush(fd, TCIOFLUSH);
-      
-    case 2:
-    nr = read(fd, &buf[1], 1);
-    total += nr;
-    if(STOP == TRUE) state = 7;
-    if(buf[1] == (unsigned char)A_SE) state = 3;
-    else{
-      tcflush(fd, TCIOFLUSH);
-      state = 1;
-    }
-  
-    case 3:
-    nr = read(fd, &buf[2], 1);
-    total += nr;
-    if(STOP == TRUE) state = 7;
-    if(buf[2] == (unsigned char)C) state = 4;
-    else{
-      tcflush(fd, TCIOFLUSH);
-      state = 1;
-    }
+  (void) signal(SIGALRM, control_alarm);
+    while(tentat <= 3 && state != 6){
+      if(STOP == FALSE){
+        alarm(3);
+        printf("3 SECONDS TIMEOUT MAKING...\n");
+        STOP = TRUE;
+      }
+      nr = read(fd, &buf[i], 1);
+      total += nr; 
+      i++;
+      switch (state)
+      {
+        case 1:
+        if(buf[0] == FLAG) state = 2;
+        else i--;
+        break;
 
-    case 4:
-    nr = read(fd, &buf[3], 1);
-    total += nr;
-    if(STOP == TRUE) state = 7;
-    if(buf[3] == (unsigned char)BCC) state = 5;
-    else{
-      tcflush(fd, TCIOFLUSH);
-      state = 1;
-    }
+        case 2:
+        if(buf[1] == A_SE) state = 3;
+        else i--;
+        break;
 
-    case 5:
-    nr = read(fd, &buf[4], 1);
-    total += nr;
-    if(STOP == TRUE) state = 7;
-    if(buf[4] == (unsigned char)FLAG) state = 6;
-    else{
-      tcflush(fd, TCIOFLUSH);
-      state = 1;
-    }
+        case 3:
+        if(buf[2] == C) state = 4;
+        else i--;
+        break;
 
-    case 6:
-    if(total == 5) break;
-    else if(STOP == TRUE) state = 7;
-    else{
-      tcflush(fd, TCIOFLUSH);
-      state = 1;
+        case 4:
+        if(buf[3] == BCC) state = 5;
+        else i--;
+        break;
+
+        case 5:
+        if(buf[4] == FLAG) state = 6;
+        else i--;
+        break;
+      }
     }
-        
-    case 7:
-    if(tentat == 3){
-      alarm(3);
-      tcflush(fd, TCIOFLUSH);
-      close(fd);
-      return 0;
-    }
-    alarm(3);
-    tcflush(fd, TCIOFLUSH);
-    state = 1;
-  }
 
   //O ciclo WHILE deve ser alterado de modo a respeitar o indicado no gui�o 
 
