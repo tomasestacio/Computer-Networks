@@ -22,17 +22,9 @@
 #define BCC A_RC^C
 
 int state=1;
-int tentat=1;
+//int tentat=0;
 
 volatile int STOP=FALSE;
-
-void control_alarm(){
-  STOP = TRUE;
-  printf("TENT#1: %d\n", tentat);
-  tentat++;
-  return;
-}
-
 
 int main(int argc, char** argv)
 {
@@ -77,7 +69,7 @@ int main(int argc, char** argv)
     /* set input mode (non-canonical, no echo,...) */
 
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */
+    newtio.c_cc[VTIME]    = 30;   /* inter-character timer unused */
     newtio.c_cc[VMIN]     = 1;   /* blocking read until 1 chars received */
 
 
@@ -98,24 +90,13 @@ int main(int argc, char** argv)
 
     printf("New termios structure set\n");
 
-    (void) signal(SIGALRM, control_alarm); //controlar o alarme (inserir interrupçao no sistema)
 
-    //while (STOP==FALSE) {       /* loop for input */
-
-      //res = read(fd,buf,8);   /* returns after 5 chars have been input */
-
-      //buf[res]='\0';               /* so we can printf... */
-
-      //printf(":%s:%d\n", buf, res);
-
-      //if (buf[0]=='z') STOP=TRUE;
-
-    //}
 
   //CONSIDERANDO QUE O READ LÊ DE 1 EM 1 BYTE
   //nt index = 0;
   int nr = 0;
   int total = 0;
+  int i = 0;
   /*while (STOP == FALSE)
   {
     res = read(fd, &buf[index], 1);
@@ -123,47 +104,39 @@ int main(int argc, char** argv)
     index++;
     if(index == 5) STOP = TRUE;
   }*/
-  
 
-  (void) signal(SIGALRM, control_alarm);
-    while(tentat <= 3 && state != 6){
-      if(STOP == FALSE){
-        alarm(3);
-        printf("3 SECONDS TIMEOUT MAKING...\n");
-        STOP = TRUE;
-      }
-      nr = read(fd, &buf[i], 1);
-      total += nr; 
-      i++;
-      switch (state)
-      {
-        case 1:
-        if(buf[0] == FLAG) state = 2;
-        else i--;
-        break;
+  while(state != 6){
+    nr = read(fd, &buf[i], 1);
+    total += nr; 
+    i++;
+    switch (state)
+    {
+      case 1:
+      if(buf[0] == FLAG) state = 2;
+      else i--;
+      break;
 
-        case 2:
-        if(buf[1] == A_SE) state = 3;
-        else i--;
-        break;
+      case 2:
+      if(buf[1] == A_SE) state = 3;
+      else i--;
+      break;
 
-        case 3:
-        if(buf[2] == C) state = 4;
-        else i--;
-        break;
+      case 3:
+      if(buf[2] == C) state = 4;
+      else i--;
+      break;
 
-        case 4:
-        if(buf[3] == BCC) state = 5;
-        else i--;
-        break;
+      case 4:
+      if(buf[3] == BCC) state = 5;
+      else state = 4;
+      break;
 
-        case 5:
-        if(buf[4] == FLAG) state = 6;
-        else i--;
-        break;
-      }
+      case 5:
+      if(buf[4] == FLAG) state = 6;
+      else state = 5;
+      break;
     }
-
+  }
   //O ciclo WHILE deve ser alterado de modo a respeitar o indicado no gui�o 
 
   /*int nr=0;
@@ -176,10 +149,10 @@ int main(int argc, char** argv)
   buf[4] = FLAG;
 	res = write(fd,buf,total);
 	printf("%d bytes written\n", res);
-  printf("UA: 0X%2X:0X%2X:0X%2X:0X%2X:0X%2X\n", buf[0], buf[1], buf[2], buf[3], buf[4]);
+  printf("UA: 0X%X:0X%X:0X%X:0X%X:0X%X\n", buf[0], buf[1], buf[2], buf[3], buf[4]);
 	res = 0;
   //i=0;
-	bzero(buf,255); //limpar o char buf
+	bzero(buf,MAX); //limpar o char buf
 
   tcsetattr(fd,TCSANOW,&oldtio);
   close(fd);
