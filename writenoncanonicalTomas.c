@@ -30,8 +30,8 @@ volatile int STOP=FALSE;
 //fazer funçao para controlar alarme -> signal, flag = false qnd alarme ativado
 
 void control_alarm(){
-  tentat++;
   printf("TENTATIVAS: %d\n", tentat);
+  tentat++;
   STOP = FALSE;
   return;
 }
@@ -43,7 +43,7 @@ int main(int argc, char** argv)
     unsigned char buf[MAX];
     int sum = 0, speed = 0;
     
-  /*  if ( (argc < 2) || 
+   if ( (argc < 2) || 
   	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
   	      (strcmp("/dev/ttyS1", argv[1])!=0) )) {
       printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
@@ -72,7 +72,7 @@ int main(int argc, char** argv)
     newtio.c_lflag = 0;
      
     newtio.c_cc[VTIME]    = 30;   /* inter-character timer unused */
-    newtio.c_cc[VMIN]     = 1;   /* blocking read until 5 chars received */
+    newtio.c_cc[VMIN]     = 0;   /* non-blocking read */
 
 
 
@@ -113,12 +113,14 @@ int main(int argc, char** argv)
     int total=0;
     int i=0;
 
+
+    (void) signal(SIGALRM, control_alarm);
+
     if(tentat == 4){
       close(fd);
       return 0;
     }
 
-    (void) signal(SIGALRM, control_alarm);
     while(tentat <= 3 && state != 6){
       if(STOP == FALSE){
         alarm(3);
@@ -128,33 +130,48 @@ int main(int argc, char** argv)
       nr = read(fd, &buf[i], 1);
       total += nr; 
       i++;
-      switch (state)
+      switch(state)
       {
-        case 1:
-        if(buf[0] == FLAG) state = 2;
-        else i--;
-        break;
+          case 1:
+          if(buf[0] == FLAG){
+            state = 2;
+            printf("BUF: %X\n", buf[0]);
+          }
+          else i--;
+          break;
 
-        case 2:
-        if(buf[1] == A_RC) state = 3;
-        else i--;
-        break;
+          case 2:
+          if(buf[1] == A_RC){
+            state = 3;
+            printf("BUF: %X\n", buf[1]);
+          }
+          else i--;
+          break;
 
-        case 3:
-        if(buf[2] == C) state = 4;
-        else i--;
-        break;
+          case 3:
+          if(buf[2] == C){
+            state = 4;
+            printf("BUF: %X\n", buf[2]);
+          }
+          else i--;
+          break;
 
-        case 4:
-        if(buf[3] == BCC) state = 5;
-        else i--;
-        break;
+          case 4:
+          if(buf[3] == BCC){
+            state = 5;
+            printf("BUF: %X\n", buf[3]);
+          }
+          else i--;
+          break;
 
-        case 5:
-        if(buf[4] == FLAG) state = 6;
-        else i--;
-        break;
-      }
+          case 5:
+          if(buf[4] == FLAG){
+            state = 6;
+            printf("BUF: %X\n", buf[4]);
+          }
+          else i--;
+          break;
+        }
     }
 
   /* 
