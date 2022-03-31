@@ -32,7 +32,7 @@ int main(int argc, char** argv)
   struct termios oldtio,newtio;
   char buf[255];
 
-/*    if ( (argc < 2) || 
+   if ( (argc < 2) || 
 
   	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
 
@@ -42,7 +42,7 @@ int main(int argc, char** argv)
 
       exit(1);
       
-      */
+      }
   /*
 
     Open serial port device for reading and writing and not as controlling tty
@@ -70,7 +70,7 @@ int main(int argc, char** argv)
 
     newtio.c_lflag = 0;
     newtio.c_cc[VTIME]    = 30;   /* inter-character timer unused */
-    newtio.c_cc[VMIN]     = 1;   /* blocking read until 1 chars received */
+    newtio.c_cc[VMIN]     = 0;   /* blocking read until 1 chars received */
 
 
   /* 
