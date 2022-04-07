@@ -39,20 +39,15 @@ typedef struct linkLayer{
 #define TRUE 1
 
 // Opens a conection using the "port" parameters defined in struct linkLayer, returns "-1" on error and "1" on sucess
-int llopen_trans(linkLayer connectionParameters);
-int llopen_recev(linkLayer connectionParameters);
+int llopen(linkLayer connectionParameters);
 // Sends data in buf with size bufSize
-int llwrite_trans(char* buf, int bufSize);
-int write_recev_OK(); //write para quando o read no receiver correu bem, keep going
-int write_recev_NOTOK(); //write para quando a mensagem o read no receiver não correu bem, request retransmisson 
+int llwrite(char* buf, int bufSize);
 // Receive data in packet
-int llread_trans(char* packet);
-int llread_recev(char* packet);
+int llread(char* packet);
 // Closes previously opened connection; if showStatistics==TRUE, link layer should print statistics in the console on close
 int llclose(int showStatistics);
 
 
 #endif
-
 
 
