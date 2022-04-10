@@ -1,5 +1,5 @@
 #include "constants.h"
-#include <linklayer.h>
+#include "linklayer.h"
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -10,16 +10,11 @@
 #include <stdio.h>
 #include <unistd.h>
 
-typedef struct linkLayer{
-    char serialPort[50];
-    int role; //defines the role of the program: 0==Transmitter, 1=Receiver
-    int baudRate;
-    int numTries;
-    int timeOut;
-} linkLayer;
-
+struct termios oldtio, newtio;
 int tentat=1;
 static int fd;
+int Ns=1;
+int Nr=1;
 
 volatile int STOP=FALSE;
 
@@ -77,7 +72,6 @@ int get_baud(int baud)
 int llopen(linkLayer connectionParameters)
 {
     int baudrate = get_baud(connectionParameters.baudRate);
-    struct termios oldtio, newtio;
     if(connectionParameters.role == 0) //transmitter
     {
         fd = open(connectionParameters.serialPort, O_RDWR | O_NOCTTY );
@@ -331,7 +325,528 @@ int establishment_rec()
     else return -1;
 }
 
-int write_information()
+unsigned char informationcheck(char* buf, int bufSize)
 {
+    Ns++;
+    if(receiver_information_read() != -1 && receiver_information_write(buf, bufSize) != -1){
+        if(Ns % 2 == 0) return 0x00;
+        else return 0x02;
+    }
+    else{
+        Ns--;
+        if(Ns % 2 == 0) return 0x00;
+        else return 0x02;
+    }
+}
+
+unsigned char confirmationcheck(char* buf, int bufSize)
+{
+    Nr++;
+    if(receiver_information_read() != -1){
+        if(transmitter_information_write(buf, bufSize) != -1){
+            if(Nr % 2 == 0) return 0x21;
+            else return 0x01;
+        }
+        else{
+            Nr--;
+            if(Nr % 2 == 0) return 0x21;
+            else return 0x01;
+        }
+    } 
+    else{
+        if(transmitter_information_write(buf, bufSize) != -1){
+            if(Nr % 2 == 0) return 0x25;
+            else return 0x05;
+        }
+        else{
+            Nr--;
+            if(Nr % 2 == 0) return 0x25;
+            else return 0x05;
+        }
+    }
+
+}
+
+int transmitter_information_write(char* buf, int bufSize)
+{
+    if(buf == NULL) return -1;
+
+    int res, rec_tot;
+    int state = 0;
+    int total;
+    unsigned char *trama;
+    unsigned char aux;
+    unsigned char BCC2 = 0x00;
+    int j = 4;
+    int newBufSize = 0;
+    //stuffing (FLAG -> ESC e FLAG^0x20 ; ESC -> ESC e ESC^0x20)
+
+    trama[0] = ESC;
+    trama[1] = FLAG^0x20;
+    trama[2] = A_TRANS;
+    trama[3] = informationcheck();
+    for(int i=0; i<bufSize; i++)
+    {
+        BCC2 ^= buf[i];
+        if(buf[i] == FLAG){
+            trama[j] = ESC;
+            newBufSize++;
+            j++;
+            trama[j] = FLAG^0x20;
+        }
+        else if(buf[i] == ESC){
+            trama[j] = ESC;
+            newBufSize++;
+            j++;
+            trama[j] = FLAG^0x20;
+        }
+        else trama[j] = buf[i];
+        newBufSize++;
+        j++;
+    }
+    trama[j] = BCC2;
+    j++;
+    trama[j] = ESC;
+    j++;
+    trama[j] = FLAG^0x20;
+
+    if(tentat == 4) return -1;
+
+    (void) signal(SIGALRM, control_alarm);
+    while(tentat <= 3)
+    {
+        if(STOP == FALSE){
+            alarm(3);
+            STOP = TRUE;
+        }
+        total = write(fd, trama, j+1);
+        if(total != 0) break;
+        else return -1;
+    }
+
+    return newBufSize;
+}
+
+int transmitter_information_read()
+{
+    unsigned char aux;
+    int state=0;
+    int res, total, retrans;
+
+    while(tentat <= 3 && state != 7)
+    {
+        res = read(fd, &aux, 1);
+        total += res;
+        switch(state){
+            case 0:
+            if(aux == FLAG) state = 1;
+            else total = 0;
+            break;
+
+            case 1:
+            if(aux == A_REC) state = 2;
+            else if(aux == FLAG){
+                state = 1;
+                total = 1;
+            } 
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 2:
+            if(aux == 0x01 || aux == 0x21){
+                state = 4;
+                retrans = 0;
+            }
+            else if(aux == FLAG){
+                state = 1;
+                total = 1;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 3:
+            if(aux == 0x05 || aux == 0x25){
+                state = 5;
+                retrans = 1;
+            } 
+            else if(aux == FLAG){
+                state = 1;
+                total = 1;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 4:
+            if(aux == A_REC^0x01 || aux == A_REC^0x21) state = 6;
+            else if(aux == FLAG){
+                state = 1;
+                total = 1;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 5:
+            if(aux == A_REC^0x05 || aux == A_REC^0x25) state = 6;
+            else if(aux == FLAG){
+                state = 1;
+                total = 1;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 6:
+            if(aux == FLAG) state = 7;
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+        }
+        if(retrans == 1){
+            //esperar pelo timeout
+            sleep(3);
+            return -1;
+        }
+        else{
+            if(total != 0){
+                (void) signal(SIGALRM, SIG_IGN);
+                return total;
+            }
+            else return -1;
+        }
+    }
+}
+
+int receiver_information_read(int bufSize)
+{
+    int state = 0;
+    int BCC2_final = 0x00;
+    int status;
+    int j = 3;
+    int res, total;
+    unsigned char *trama;
+    unsigned char aux;
+
+    if(tentat == 4) return -1;
+
+    while(tentat <= 3 && state != 8)
+    {
+        res = read(fd, &aux, 1);
+        total += res;
+        switch(state){
+            case 0:
+            if(aux == ESC) state = 1;
+            else total = 0;
+            break;
+
+            case 1:
+            if(aux == FLAG^0x20){
+                trama[0] = FLAG;
+                state = 2;
+            }
+            else if(aux == ESC){
+                state = 1;
+                total = 1;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 2:
+            if(aux == A_TRANS){
+                trama[1] = aux;
+                state = 3;
+            }
+            else if(aux == ESC){
+                state = 1;
+                total = 1;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 3:
+            if(aux == 0x00 || aux == 0x02){
+                trama[2] = aux;
+                state = 4;
+            }
+            else if(aux == ESC){
+                state = 1;
+                total = 1;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+        }
+        if(state == 4){
+            for(int i=0; i<bufSize; i++){
+                res = read(fd, &aux, 1);
+                total += res;
+                if(aux == ESC) status = 1;
+                else if(aux == FLAG^0x20 && status == 1){
+                    trama[j] = FLAG;
+                    j++;
+                    status = 0;
+                }
+                else if(aux == ESC^0x20 && status == 1){
+                    trama[j] = ESC;
+                    j++;
+                    status = 0;
+                }
+                else{
+                    trama[j] = aux;
+                    j++;
+                }
+            }
+            state = 5;
+        }
+        //BCC2 count
+        for(int i=0; i<j-3; i++) BCC2_final ^= trama[i];
+        else if(state == 5){
+            res = read(fd, &aux, 1);
+            total += res;
+            if(BCC2_final == aux){
+                trama[j] = aux;
+                j++;
+                state = 6;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+        }
+        else if(state == 6){
+            res = read(fd, &aux, 1);
+            total += res;
+            if(aux == ESC) state = 7;
+            else{
+                state = 0;
+                total = 0;
+            }
+        }
+        else if(state == 7) {
+            res = read(fd, &aux, 1);
+            total += res;
+            if(aux == FLAG^0x20){
+                trama[j] = FLAG;
+                state = 8;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+        }
+    }
+    return j+1;
+}
+
+int receiver_information_write(char* buf, int bufSize)
+{
+    unsigned char *trama;
+    int total;
+
+    trama[0] = FLAG;
+    trama[1] = A_REC;
+    trama[2] = confirmationcheck(buf, bufSize);
+    trama[3] = trama[1]^trama[2];
+    trama[4] = FLAG;
+
+    if(tentat == 4) return -1;
+
+    while(tentat <= 3){
+        total = write(fd, trama, 5);
+        if(total == 5) break;
+        else return -1;
+    }
+
+    return total;
+}
+
+int termination_trans()
+{
+    unsigned char aux;
+    unsigned char *trama;
+    int state = 0;
+    int res, total;
+
+    if(tentat == 4) return -1;
+
+    trama[0] = FLAG;
+    trama[1] = A_TRANS;
+    trama[2] = DISC;
+    trama[3] = A_TRANS^DISC;
+    trama[4] = FLAG;
+
+    (void) signal(SIGALRM, control_alarm);
+    while(tentat <= 3 && state != 6)
+    {
+        if(STOP == FALSE){
+            alarm(3);
+            STOP = TRUE;
+            res = write(fd, trama, 5);
+        }
+        res = read(fd, &aux, 1);
+        total += res;
+        switch(state){
+            case 0:
+            if(aux == FLAG) state = 1;
+            else total = 0;
+            break;
+
+            case 1:
+            if(aux == A_REC) state = 2;
+            else if(aux == FLAG){
+                state = 1;
+                total = 1;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 2:
+            if(aux == DISC) state = 3;
+            else if(aux == FLAG){
+                state = 1;
+                total = 1;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 3:
+            if(aux == A_REC^DISC) state = 4;
+            else if(aux == FLAG){
+                state = 1;
+                total = 1;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 4:
+            if(aux == FLAG) state = 5;
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 5:
+            trama[2] = UA;
+            trama[3] = A_TRANS^UA;
+            res = write(fd, trama, 5);
+            if(res == 5) state = 6;
+            break;
+        }
+    }
+
+    (void) signal(SIGALRM, SIG_IGN);
+    return total;
+}
+
+int termination_rec()
+{
+    unsigned char aux;
+    unsigned char *trama;
+    int state = 0;
+    int res, total;
+
+    trama[0] = FLAG;
+    trama[1] = A_REC;
+    trama[2] = DISC;
+    trama[3] = A_REC^DISC;
+    trama[4] = FLAG;
+
+    if(tentat == 4) return -1;
+
+    while(tentat <= 3 && state != 6)
+    {
+        res = read(fd, &aux, 1);
+        total += res;
+        switch(state){
+            case 0:
+            if(aux == FLAG) state = 1;
+            else total = 0;
+            break;
+
+            case 1:
+            if(aux == A_TRANS) state = 2;
+            else if(aux == FLAG){
+                state = 1;
+                total = 1;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 2:
+            if(aux == DISC) state = 3;
+            else if(aux == FLAG){
+                state = 1;
+                total = 1;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 3:
+            if(aux == A_TRANS^DISC) state = 4;
+            else if(aux == FLAG){
+                state = 1;
+                total = 1;
+            }
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 4:
+            if(aux == FLAG) state = 5;
+            else{
+                state = 0;
+                total = 0;
+            }
+            break;
+
+            case 5:
+            res = write(fd, trama, 5);
+            if(res == 5) state = 6;
+            break;
+        }
+    }
     
+    (void) signal(SIGALRM, SIG_IGN);
+    return total;
 }
