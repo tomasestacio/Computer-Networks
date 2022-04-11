@@ -325,51 +325,29 @@ int establishment_rec()
     else return -1;
 }
 
-unsigned char informationcheck(char* buf, int bufSize)
+unsigned char informationcheck()
 {
     Ns++;
-    if(receiver_information_read() != -1 && receiver_information_write(buf, bufSize) != -1){
-        if(Ns % 2 == 0) return 0x00;
-        else return 0x02;
-    }
-    else{
-        Ns--;
-        if(Ns % 2 == 0) return 0x00;
-        else return 0x02;
-    }
+    if(Ns % 2 == 0) return 0x00;
+    else return 0x02;
 }
 
-unsigned char confirmationcheck(char* buf, int bufSize)
+unsigned char confirmationcheck(char* packet)
 {
     Nr++;
-    if(receiver_information_read() != -1){
-        if(transmitter_information_write(buf, bufSize) != -1){
-            if(Nr % 2 == 0) return 0x21;
-            else return 0x01;
-        }
-        else{
-            Nr--;
-            if(Nr % 2 == 0) return 0x21;
-            else return 0x01;
-        }
+    if(receiver_information_read(packet) != -1){
+        if(Nr % 2 == 0) return 0x21;
+        else return 0x01;
     } 
     else{
-        if(transmitter_information_write(buf, bufSize) != -1){
-            if(Nr % 2 == 0) return 0x25;
-            else return 0x05;
-        }
-        else{
-            Nr--;
-            if(Nr % 2 == 0) return 0x25;
-            else return 0x05;
-        }
+        if(Nr % 2 == 0) return 0x25;
+        else return 0x05;
     }
-
 }
 
 int transmitter_information_write(char* buf, int bufSize)
 {
-    if(buf == NULL) return -1;
+    if(buf == NULL || bufSize < 0) return -1;
 
     int res, rec_tot;
     int state = 0;
@@ -384,7 +362,7 @@ int transmitter_information_write(char* buf, int bufSize)
     trama[0] = ESC;
     trama[1] = FLAG^0x20;
     trama[2] = A_TRANS;
-    trama[3] = informationcheck();
+    trama[3] = informationcheck(buf, bufSize);
     for(int i=0; i<bufSize; i++)
     {
         BCC2 ^= buf[i];
@@ -410,9 +388,6 @@ int transmitter_information_write(char* buf, int bufSize)
     j++;
     trama[j] = FLAG^0x20;
 
-    if(tentat == 4) return -1;
-
-    (void) signal(SIGALRM, control_alarm);
     while(tentat <= 3)
     {
         if(STOP == FALSE){
@@ -517,22 +492,15 @@ int transmitter_information_read()
             }
             break;
         }
-        if(retrans == 1){
-            //esperar pelo timeout
-            sleep(3);
-            return -1;
-        }
+        if(retrans == 1) return -1;
         else{
-            if(total != 0){
-                (void) signal(SIGALRM, SIG_IGN);
-                return total;
-            }
+            if(total != 0) return total;
             else return -1;
         }
     }
 }
 
-int receiver_information_read(int bufSize)
+int receiver_information_read(char* packet)
 {
     int state = 0;
     int BCC2_final = 0x00;
@@ -541,8 +509,9 @@ int receiver_information_read(int bufSize)
     int res, total;
     unsigned char *trama;
     unsigned char aux;
+    int packetSize = sizeof(packet);
 
-    if(tentat == 4) return -1;
+    if(packet == NULL) return -1;
 
     while(tentat <= 3 && state != 8)
     {
@@ -600,7 +569,7 @@ int receiver_information_read(int bufSize)
             break;
         }
         if(state == 4){
-            for(int i=0; i<bufSize; i++){
+            for(int i=0; i<packetSize; i++){
                 res = read(fd, &aux, 1);
                 total += res;
                 if(aux == ESC) status = 1;
@@ -621,11 +590,15 @@ int receiver_information_read(int bufSize)
             }
             state = 5;
         }
-        //BCC2 count
-        for(int i=0; i<j-3; i++) BCC2_final ^= trama[i];
+
         else if(state == 5){
             res = read(fd, &aux, 1);
             total += res;
+
+            for(int i=0; i<j-3; i++){
+                BCC2_final ^= trama[i];
+            }
+
             if(BCC2_final == aux){
                 trama[j] = aux;
                 j++;
@@ -661,18 +634,18 @@ int receiver_information_read(int bufSize)
     return j+1;
 }
 
-int receiver_information_write(char* buf, int bufSize)
+int receiver_information_write(char* packet)
 {
     unsigned char *trama;
     int total;
 
     trama[0] = FLAG;
     trama[1] = A_REC;
-    trama[2] = confirmationcheck(buf, bufSize);
+    trama[2] = confirmationcheck(packet);
     trama[3] = trama[1]^trama[2];
     trama[4] = FLAG;
 
-    if(tentat == 4) return -1;
+    if(packet == NULL) return -1;
 
     while(tentat <= 3){
         total = write(fd, trama, 5);
@@ -768,7 +741,7 @@ int termination_trans()
     }
 
     (void) signal(SIGALRM, SIG_IGN);
-    return total;
+    return 1;
 }
 
 int termination_rec()
@@ -848,5 +821,52 @@ int termination_rec()
     }
     
     (void) signal(SIGALRM, SIG_IGN);
-    return total;
+    return 1;
 }
+
+int llwrite(char* buf, int bufSize)
+{
+    int totalwr, totalread;
+
+    if(buf == NULL) return -1;
+    if(tentat == 4){
+        llclose(TRUE);
+        return -1;
+    }
+
+    (void) signal(SIGALRM, control_alarm);
+    totalwr = transmitter_information_write(buf, bufSize);
+
+    if(totalwr == -1) sleep(3);
+
+    totalread = transmitter_information_read();
+
+    if(totalread  == -1) sleep(3);
+    else (void) signal(SIGALRM, SIG_IGN);
+
+    return totalwr;
+}
+
+int llread(char* packet)
+{
+    int totalread, totalwr;
+    if(packet == NULL) return -1;
+    if(tentat == 4){
+        llclose(TRUE);
+        return -1;
+    }
+
+    totalread = receiver_information_read(packet);
+    if(totalread == -1) sleep(3);
+
+    totalwr = receiver_information_write(packet);
+    if(totalwr == -1) sleep(3);
+
+    return totalread;
+}
+
+int llclose(int showStatistics)
+{
+
+}
+
