@@ -1,24 +1,53 @@
-//constantes hexadecimais
-#define FLAG 0x7E
-#define A_TRANS 0x03
-#define A_REC 0x01
-//C pode ser 0x02 ou 0x00 (information frame)
-#define ESC 0x7D
-#define SET 0x03
-#define DISC 0x0B
-#define UA 0x07
+#ifndef LINKLAYER
+#define LINKLAYER
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <stdio.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+
+typedef struct linkLayer{
+    char serialPort[50];
+    int role; //defines the role of the program: 0==Transmitter, 1=Receiver
+    int baudRate;
+    int numTries;
+    int timeOut;
+} linkLayer;
+
+//ROLE
+#define NOT_DEFINED -1
+#define TRANSMITTER 0
+#define RECEIVER 1
+
+
+//SIZE of maximum acceptable payload; maximum number of bytes that application layer should send to link layer
+#define MAX_PAYLOAD_SIZE 1000
+
+//CONNECTION deafault values
+#define BAUDRATE_DEFAULT B38400
+#define MAX_RETRANSMISSIONS_DEFAULT 3
+#define TIMEOUT_DEFAULT 4
+#define _POSIX_SOURCE 1 /* POSIX compliant source */
+
+//MISC
+#define FALSE 0
+#define TRUE 1
 
 // Opens a conection using the "port" parameters defined in struct linkLayer, returns "-1" on error and "1" on sucess
+int llopen(linkLayer connectionParameters);
+// Sends data in buf with size bufSize
+int llwrite(char* buf, int bufSize);
+// Receive data in packet
+int llread(char* packet);
+// Closes previously opened connection; if showStatistics==TRUE, link layer should print statistics in the console on close
+int llclose(int showStatistics);
 
-int get_baud(int baud);
-int establishment_trans(); //returns 1 if everything goes well, -1 if error -> include in llwrite
-int establishment_rec(); //returns 1 if everything goes well, -1 if error -> include in llread
-unsigned char informationcheck(); //returns the control flag for the transmitter of the information packet
-unsigned char confirmationcheck(char* packet); //returns the control flag for the receiver of the information packet
-int transmitter_information_write(char* buf, int bufSize); //stuffing included, returns size of trama, if error returns -1
-int transmitter_information_read(); //returns size of trama readed, -1 if error
-int receiver_information_read(); //returns size of trama readed, -1 if error
-int receiver_information_write(char* packet); //returns size of trama, if error returns -1
-int termination_trans(); //returns 1 if everything goes well, -1 if error
-int termination_rec(); //returns 1 if everything goes well, -1 if error
+
+#endif
+
+
