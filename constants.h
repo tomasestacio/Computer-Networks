@@ -14,3 +14,11 @@
 int get_baud(int baud);
 int establishment_trans(); //returns 1 if everything goes well, -1 if error -> include in llwrite
 int establishment_rec(); //returns 1 if everything goes well, -1 if error -> include in llread
+unsigned char informationcheck(); //returns the control flag for the transmitter of the information packet
+unsigned char confirmationcheck(char* packet); //returns the control flag for the receiver of the information packet
+int transmitter_information_write(char* buf, int bufSize); //stuffing included, returns size of trama, if error returns -1
+int transmitter_information_read(); //returns size of trama readed, -1 if error
+int receiver_information_read(); //returns size of trama readed, -1 if error
+int receiver_information_write(char* packet); //returns size of trama, if error returns -1
+int termination_trans(); //returns 1 if everything goes well, -1 if error
+int termination_rec(); //returns 1 if everything goes well, -1 if error
