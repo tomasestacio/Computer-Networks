@@ -23,7 +23,7 @@ int rej_count=0;
 int rr_count=0;
 int error_count=0;
 
-int TIMEOUT;
+int NUMTRIES;
 
 unsigned char BCC2_inicial = 0x00;
 unsigned char BCC2_final = 0x00;
@@ -84,7 +84,7 @@ int get_baud(int baud)
 int llopen(linkLayer connectionParameters)
 {
     int baudrate = get_baud(connectionParameters.baudRate);
-    TIMEOUT = connectionParameters.timeOut;
+    NUMTRIES = connectionParameters.timeOut;
     if(connectionParameters.role == 0) //transmitter
     {
         fd = open(connectionParameters.serialPort, O_RDWR | O_NOCTTY );
@@ -108,7 +108,7 @@ int llopen(linkLayer connectionParameters)
         /* set input mode (non-canonical, no echo,...) */
         newtio.c_lflag = 0;
 
-        newtio.c_cc[VTIME]    = connectionParameters.timeOut*30;   /* inter-character timer unused */
+        newtio.c_cc[VTIME]    = connectionParameters.timeOut*10;   /* inter-character timer unused */
         newtio.c_cc[VMIN]     = 0;   /* blocking read until 5 chars received */
 
         tcflush(fd, TCIOFLUSH);
@@ -143,7 +143,7 @@ int llopen(linkLayer connectionParameters)
         /* set input mode (non-canonical, no echo,...) */
 
         newtio.c_lflag = 0;
-        newtio.c_cc[VTIME]    = 30;   /* inter-character timer unused */
+        newtio.c_cc[VTIME]    = connectionParameters.timeOut*10;   /* inter-character timer unused */
         newtio.c_cc[VMIN]     = 0;   /* blocking read until 1 chars received */
 
         tcflush(fd, TCIOFLUSH);
@@ -171,13 +171,13 @@ int establishment_trans()
     inicio[3] = A_TRANS^SET;
     inicio[4] = FLAG;
 
-    if(tentat == TIMEOUT){
+    if(tentat == NUMTRIES){
       llclose(TRUE);
       return -1;
     }
 
     (void) signal(SIGALRM, control_alarm);
-    while(tentat < TIMEOUT && state != 5)
+    while(tentat < NUMTRIES && state != 5)
     {   
         if(STOP == FALSE){
             alarm(3);
@@ -242,8 +242,7 @@ int establishment_trans()
         }
     }
 
-    if(total == 5 && state == 5){
-        printf("TRANSMITTER READ CONFIRMED\n");
+    if(state == 5){
         (void) signal(SIGALRM, SIG_IGN);
         return 1;
     } 
@@ -309,7 +308,7 @@ int transmitter_information_write(char* buf, int bufSize)
     j++;
     trama[j] = FLAG;
 
-    while(tentat < TIMEOUT)
+    while(tentat < NUMTRIES)
     {
         if(STOP == FALSE){
             alarm(3);
@@ -329,7 +328,7 @@ int transmitter_information_read()
     int state=0;
     int res, total;
 
-    while(tentat < TIMEOUT && state != 7)
+    while(tentat < NUMTRIES && state != 7)
     {
         res = read(fd, &aux, 1);
         total += res;
@@ -428,7 +427,7 @@ int termination_trans()
     int state = 0;
     int res, total;
 
-    if(tentat == TIMEOUT){
+    if(tentat == NUMTRIES){
         llclose(TRUE);
         return -1;
     }
@@ -440,12 +439,13 @@ int termination_trans()
     trama[4] = FLAG;
 
     (void) signal(SIGALRM, control_alarm);
-    while(tentat < TIMEOUT && state != 6)
+    while(tentat < NUMTRIES && state != 6)
     {
         if(STOP == FALSE){
             alarm(3);
             STOP = TRUE;
             res = write(fd, trama, 5);
+            printf("DISC: 0x%X | 0x%X | 0x%X | 0x%X | 0x%X\n", trama[0], trama[1], trama[2], trama[3], trama[4]);
         }
         res = read(fd, &aux, 1);
         total += res;
@@ -503,11 +503,12 @@ int termination_trans()
             trama[2] = UA;
             trama[3] = A_TRANS^UA;
             res = write(fd, trama, 5);
+            printf("UA: 0x%X | 0x%X | 0x%X | 0x%X | 0x%X\n", trama[0], trama[1], trama[2], trama[3], trama[4]);
             if(res == 5) state = 6;
             break;
         }
     }
-
+    printf("END OF TRANSMITTER!\n");
     (void) signal(SIGALRM, SIG_IGN);
     return 1;
 }
@@ -525,18 +526,18 @@ int establishment_rec()
     inicio[3] = A_REC^UA;
     inicio[4] = FLAG;
 
-    if(tentat == TIMEOUT){
+    if(tentat == NUMTRIES){
       llclose(TRUE);
       return -1;
     }
 
-    while(tentat < TIMEOUT && state != 6)
+    (void) signal(SIGALRM, control_alarm);
+    while(tentat < NUMTRIES && state != 6)
     {   
         if(STOP == FALSE){
             alarm(3);
             STOP = TRUE;
         }
-
         res = read(fd, &aux, 1);
         total += res;
 
@@ -584,7 +585,9 @@ int establishment_rec()
             break;
 
             case 4:
-            if(aux == FLAG) state = 5;
+            if(aux == FLAG){
+                state = 5;
+            } 
             else{
                 state = 0;
                 total = 0;
@@ -600,7 +603,10 @@ int establishment_rec()
         }
     }
 
-    if(total == 5 && state == 6) return 1;
+    if(state == 6){
+        (void) signal(SIGALRM, SIG_IGN); 
+        return 1;
+    }
     else return -1;
 }
 
@@ -641,7 +647,7 @@ int receiver_information_read(char* packet)
 
     if(packet == NULL) return 0;
 
-    while(tentat < TIMEOUT && state != 6)
+    while(tentat < NUMTRIES && state != 6)
     {
         res = read(fd, &aux, 1);
         total += res;
@@ -773,7 +779,7 @@ int receiver_information_write(char* packet)
 
     if(packet == NULL) return 0;
 
-    while(tentat < TIMEOUT){
+    while(tentat < NUMTRIES){
         total = write(fd, trama, 5);
         if(total == 5) break;
         else return 0;
@@ -795,13 +801,18 @@ int termination_rec()
     trama[3] = A_REC^DISC;
     trama[4] = FLAG;
 
-    if(tentat == TIMEOUT){
+    if(tentat == NUMTRIES){
         llclose(TRUE);
         return -1;
     }
 
-    while(tentat < TIMEOUT && state != 6)
+    (void) signal(SIGALRM, control_alarm);
+    while(tentat < NUMTRIES && state != 6)
     {
+        if(STOP == FALSE){
+            alarm(3);
+            STOP = TRUE;
+        }
         res = read(fd, &aux, 1);
         total += res;
         switch(state){
@@ -856,11 +867,12 @@ int termination_rec()
 
             case 5:
             res = write(fd, trama, 5);
+            printf("DISC: 0x%X | 0x%X | 0x%X | 0x%X | 0x%X\n", trama[0], trama[1], trama[2], trama[3], trama[4]);
             if(res == 5) state = 6;
             break;
         }
     }
-    
+    printf("END OF RECEIVER\n");
     (void) signal(SIGALRM, SIG_IGN);
     return 1;
 }
@@ -871,7 +883,7 @@ int llwrite(char* buf, int bufSize)
 
     if(buf == NULL || bufSize > MAX_PAYLOAD_SIZE) return -1;
 
-    if(tentat == TIMEOUT){
+    if(tentat == NUMTRIES){
         llclose(TRUE);
         return -1;
     }
@@ -902,11 +914,12 @@ int llread(char* packet)
     int totalread, totalwr;
     if(packet == NULL) return -1;
 
-    if(tentat == TIMEOUT){
+    if(tentat == NUMTRIES){
         llclose(TRUE);
         return -1;
     }
 
+    (void) signal(SIGALRM, control_alarm);
     totalread = receiver_information_read(packet);
     TOTALREAD_REC += totalread;
 
@@ -922,7 +935,7 @@ int llread(char* packet)
         error_count++;
         sleep(3);
     }
-
+    else (void) signal(SIGALRM, SIG_IGN);
     return totalread;
 }
 
