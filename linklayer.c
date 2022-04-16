@@ -28,8 +28,11 @@ int rej_count_rec=0;
 int rr_count_trans=0;
 int rr_count_rec=0;
 int error_count=0;
+int resent_read=0;
+int resent_write=0;
 
 int NUMTRIES;
+int TIMEOUT;
 
 unsigned char BCC2_inicial = 0x00;
 unsigned char BCC2_final = 0x00;
@@ -91,6 +94,7 @@ int llopen(linkLayer connectionParameters)
 {
     int baudrate = get_baud(connectionParameters.baudRate);
     NUMTRIES = connectionParameters.numTries;
+    TIMEOUT = connectionParameters.timeOut;
     if(connectionParameters.role == 0) //transmitter
     {
         tx = 1;
@@ -892,7 +896,7 @@ int llwrite(char* buf, int bufSize)
     totalwr = transmitter_information_write(buf, bufSize);  
     printf("Transmitter write ok: (totalwr) %d\n", totalwr);  
     TOTALWRITE_TRANS += totalwr;
-    /*if(STOP == FALSE){
+    if(STOP == FALSE){
         if(tentat == NUMTRIES){
             llclose(TRUE);
             return -1;
@@ -903,22 +907,23 @@ int llwrite(char* buf, int bufSize)
         }
     }
     sleep(1);
-    */
+    
     totalread = transmitter_information_read();
     printf("Transmitter read ok: (totalread) %d\n", totalread);  
     TOTALREAD_TRANS += totalread;
-    /*if(STOP == FALSE){
+    if(STOP == FALSE){
         if(tentat == NUMTRIES){
             llclose(TRUE);
             return -1;
         }
         else{
+            resent_write++;
             sleep(1);
             return llwrite(buf, bufSize);
         }
     }
     sleep(1);
-    */
+    
     //REJ retrans
     if(totalread == 0){
         rej_count_trans++;
@@ -955,23 +960,24 @@ int llread(char* packet)
     totalread = receiver_information_read(packet);
     printf("Receiver read ok: (totalread) %d\n", totalread);  
     TOTALREAD_REC += totalread;
-    /*if(STOP == FALSE){
+    if(STOP == FALSE){
         if(tentat == NUMTRIES){
             llclose(TRUE);
             return -1;
         }
         else{
+            resent_read++;
             bzero(packet, MAX_PAYLOAD_SIZE+7);
             sleep(1);
             return llread(packet);
         }        
     }
     sleep(1);
-    */
+    
     totalwr = receiver_information_write(packet);
     printf("Receiver write ok: (totalwr) %d\n", totalwr);  
     TOTALWRITE_REC += totalwr;
-    /*if(STOP == FALSE){
+    if(STOP == FALSE){
         if(tentat == NUMTRIES){
             llclose(TRUE);
             return -1;
@@ -983,7 +989,7 @@ int llread(char* packet)
         }        
     }
     sleep(1);
-    */
+    
     //REJ
     if(totalread == 0){
         rej_count_rec++;
@@ -1013,37 +1019,56 @@ int llclose(int showStatistics)
         exit(-1);
     }
 
+    //erro - não mostra estatísticas
+    if(tentat == NUMTRIES){
+        close(fd);
+        return -1;
+    }
+
     if(tx == 1) check_tx = termination_trans();
     else if(rx == 1) check_rx = termination_rec();
 
     if(check_tx == -1 || check_rx == -1){
         if(showStatistics == TRUE && tx == 1){
             printf("STATISTICS OF TRANSMITTER:\n");
+            printf("Timeout defined: %d seconds\n", TIMEOUT);
+            printf("Number of tries defined before closing: %d\n", NUMTRIES);
             printf("Number of bytes sent: %d\n", TOTALWRITE_TRANS);
             printf("Number of frames confirmed: %d\n", rr_count_trans);
             printf("Number of frames rejected: %d\n", rej_count_trans);
+            printf("Number of frames timed out: %d\n", resent_write);
         }
         else if(showStatistics == TRUE && rx == 1){
             printf("STATISTICS OF RECEIVER:\n");
+            printf("Timeout: %d seconds\n", TIMEOUT);
+            printf("Number of tries before closing: %d\n", NUMTRIES);
             printf("Number of bytes received: %d\n", TOTALREAD_REC);
             printf("Number of frames confirmed: %d\n", rr_count_rec);
             printf("Number of frames rejected: %d\n", rej_count_rec);
+            printf("Number of frames timed out: %d\n", resent_read);
         }
+
         close(fd);
         return -1;
     } 
 
     if(showStatistics == TRUE && tx == 1){
         printf("STATISTICS OF TRANSMITTER:\n");
+        printf("Timeout defined: %d seconds\n", TIMEOUT);
+        printf("Number of tries defined before closing: %d\n", NUMTRIES);
         printf("Number of bytes sent: %d\n", TOTALWRITE_TRANS);
         printf("Number of frames confirmed: %d\n", rr_count_trans);
         printf("Number of frames rejected: %d\n", rej_count_trans);
+        printf("Number of frames timed out: %d\n", resent_write);
     }
     else if(showStatistics == TRUE && rx == 1){
         printf("STATISTICS OF RECEIVER:\n");
+        printf("Timeout defined: %d seconds\n", TIMEOUT);
+        printf("Number of tries defined before closing: %d\n", NUMTRIES);
         printf("Number of bytes received: %d\n", TOTALREAD_REC);
         printf("Number of frames confirmed: %d\n", rr_count_rec);
         printf("Number of frames rejected: %d\n", rej_count_rec);
+        printf("Number of frames timed out: %d\n", resent_read);
     }
 
     close(fd);
