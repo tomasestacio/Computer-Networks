@@ -16,6 +16,7 @@ int tx=0;
 int rx=0; 
 int tentat=0;
 int RETRANS=0;
+int status=0;
 static int fd;
 int Ns=0;
 int Nr=1;
@@ -124,7 +125,8 @@ int llopen(linkLayer connectionParameters)
             exit(-1);
         }
 
-        if(establishment_trans() == 1) return 1;
+        int check = establishment_trans();
+        if(check == 1) return 1;
         else return -1;
     }
     else if(connectionParameters.role == 1) //receiver
@@ -161,7 +163,8 @@ int llopen(linkLayer connectionParameters)
             exit(-1);
         } 
 
-        if(establishment_rec() == 1) return 1;
+        int check = establishment_rec();
+        if(check == 1) return 1;
         else return -1;
     }
     else return -1;
@@ -181,11 +184,6 @@ int establishment_trans()
     inicio[3] = A_TRANS^SET;
     inicio[4] = FLAG;
 
-    if(tentat == NUMTRIES){
-      llclose(TRUE);
-      return -1;
-    }
-
     (void) signal(SIGALRM, control_alarm);
     while(tentat < NUMTRIES && state != 5)
     {   
@@ -195,7 +193,6 @@ int establishment_trans()
             res = write(fd, inicio, 5);
             printf("SET: 0x%X | 0x%X | 0x%X | 0x%X | 0x%X\n", inicio[0], inicio[1], inicio[2], inicio[3], inicio[4]);
         }
-
         res = read(fd, &aux, 1);
         total += res;
 
@@ -283,21 +280,26 @@ int transmitter_information_write(char* buf, int bufSize)
     trama[2] = informationcheck(buf, bufSize);
     for(int i=0; i<bufSize; i++)
     {
-        BCC2 ^= buf[i];
+        BCC2^=buf[i];
+    }
+    for(int i=0; i<bufSize; i++)
+    {
+        //BCC2 ^= buf[i];
         if(buf[i] == FLAG){
             trama[j] = ESC;
             j++;
-            trama[j] = FLAG^0x20;
+            trama[j] = 0x5E;
         }
         else if(buf[i] == ESC){
             trama[j] = ESC;
             j++;
-            trama[j] = FLAG^0x20;
+            trama[j] = 0x5D;
         }
+        
         else trama[j] = buf[i];
+
         j++;
     }
-
     if(BCC2 == FLAG){
         trama[j] = ESC;
         j++;
@@ -410,13 +412,11 @@ int transmitter_information_read()
             }
             break;
         }
-        if(RETRANS == 1){
+        if(RETRANS == 1 && state == 7){
             RETRANS = 0;
             return 0;
         }
-        else{
-            return 1;
-        }
+        else return 1;
     }
 }
 
@@ -427,11 +427,6 @@ int termination_trans()
     int state = 0;
     int res = 0;
     int total = 0;
-
-    if(tentat == NUMTRIES){
-        llclose(TRUE);
-        return -1;
-    }
 
     trama[0] = FLAG;
     trama[1] = A_TRANS;
@@ -448,8 +443,12 @@ int termination_trans()
             res = write(fd, trama, 5);
             printf("DISC: 0x%X | 0x%X | 0x%X | 0x%X | 0x%X\n", trama[0], trama[1], trama[2], trama[3], trama[4]);
         }
-        res = read(fd, &aux, 1);
-        total += res;
+
+        if(state != 5){
+            res = read(fd, &aux, 1);
+            total += res;
+        }
+        
         switch(state){
             case 0:
             if(aux == FLAG) state = 1;
@@ -509,7 +508,9 @@ int termination_trans()
             break;
         }
     }
-    printf("END OF TRANSMITTER!\n");
+    
+    if(tentat == NUMTRIES) return -1;
+
     (void) signal(SIGALRM, SIG_IGN);
     STOP = FALSE;
     tentat = 0;
@@ -530,11 +531,6 @@ int establishment_rec()
     inicio[3] = A_REC^UA;
     inicio[4] = FLAG;
 
-    if(tentat == NUMTRIES){
-      llclose(TRUE);
-      return -1;
-    }
-
     (void) signal(SIGALRM, control_alarm);
     while(tentat < NUMTRIES && state != 6)
     {   
@@ -542,9 +538,12 @@ int establishment_rec()
             alarm(3);
             STOP = TRUE;
         }
-        res = read(fd, &aux, 1);
-        total += res;
 
+        if(total != 5){
+            res = read(fd, &aux, 1);
+            total += res;
+        }
+        
         switch(state)
         {
             case 0:
@@ -599,7 +598,6 @@ int establishment_rec()
             break;
 
             case 5:
-            printf("RECEIVER READ CONFIRMED\n");
             res = write(fd, inicio, 5);
             printf("UA: 0x%X | 0x%X | 0x%X | 0x%X | 0x%X\n", inicio[0], inicio[1], inicio[2], inicio[3], inicio[4]);
             if(res == 5) state = 6;
@@ -667,43 +665,9 @@ int receiver_information_read(char* packet)
             case 2:
             if(aux == 0x00 || aux == 0x02){
                 packet[2] = aux;
-                while(res == 1){
-                    res = read(fd, &aux, 1);
-                    total += res;
-                    if(res == 1){
-                        if(aux == ESC){
-                            res = read(fd, &aux, 1);
-                            total += res;
-                            if(aux == FLAG^0x20){
-                                packet[j] = FLAG;
-                                j++;
-                            }
-                            else if(aux == ESC^0x20){
-                                packet[j] = ESC;
-                                j++;
-                            }
-                        }
-                        else{
-                            packet[j] = aux;
-                            j++;
-                        }
-                    }
-                }
-                
-                BCC2_final = packet[j-2];
-                for(int i = 3; i < j-2; i++){
-                    BCC2_inicial ^= packet[i]; 
-                }
-                if(BCC2_final == BCC2_inicial){
-                    state = 3;
-                    if(packet[j-1] == FLAG) state = 4;
-                    else{
-                        state = 0;
-                        total = 0;
-                    }
-                }
-                else return 0;
+                state = 3;
             }
+            
             else if(aux == FLAG){
                 state = 1;
                 total = 1;
@@ -713,11 +677,40 @@ int receiver_information_read(char* packet)
                 total = 0;
             }
             break;
-
+            
+            case 3:
+            if(aux == ESC) status = 1;
+            else if(aux == 0x5D && status == 1){
+                status = 0;
+                packet[j] = ESC;
+                j++;
+            }
+            else if(aux == 0x5E && status == 1){
+                status = 0;
+                packet[j] = FLAG;
+                j++;
+            }
+            else if(aux == FLAG){
+                state = 4;
+                packet[j] = aux;
+            }
+            else{
+                packet[j] = aux;
+                j++;
+            }
+            break;
+        }
+        if(state == 4){
+            BCC2_inicial = packet[j-1];
+            for(int i = 3; i < j-1; i++){
+                BCC2_final ^= packet[i];
+            }
         }
     }
+    
+    if(BCC2_inicial == BCC2_final) return j+1;
+    else return 0;
 
-    return j;
 }
 
 int receiver_information_write(char* packet)
@@ -753,20 +746,19 @@ int termination_rec()
     trama[3] = A_REC^DISC;
     trama[4] = FLAG;
 
-    if(tentat == NUMTRIES){
-        llclose(TRUE);
-        return -1;
-    }
-
     (void) signal(SIGALRM, control_alarm);
-    while(tentat < NUMTRIES && state != 6)
+    while(tentat < NUMTRIES && state != 11)
     {
         if(STOP == FALSE){
             alarm(3);
             STOP = TRUE;
         }
-        res = read(fd, &aux, 1);
-        total += res;
+
+        if(state != 5){
+            res = read(fd, &aux, 1);
+            total += res;
+        }
+
         switch(state){
             case 0:
             if(aux == FLAG) state = 1;
@@ -818,13 +810,65 @@ int termination_rec()
             break;
 
             case 5:
+            total = 0;
             res = write(fd, trama, 5);
             printf("DISC: 0x%X | 0x%X | 0x%X | 0x%X | 0x%X\n", trama[0], trama[1], trama[2], trama[3], trama[4]);
             if(res == 5) state = 6;
             break;
+
+            case 6:
+            if(aux == FLAG) state = 7;
+            else total = 0;
+            break;
+
+            case 7:
+            if(aux == A_TRANS) state = 8;
+            else if(aux == FLAG){
+                state = 7;
+                total = 1;
+            }
+            else{
+                state = 6;
+                total = 0;
+            }
+            break;
+
+            case 8:
+            if(aux == UA) state = 9;
+            else if(aux == FLAG){
+                state = 7;
+                total = 1;
+            }
+            else{
+                state = 6;
+                total = 0;
+            }
+            break;
+
+            case 9:
+            if(aux == A_TRANS^UA) state = 10;
+            else if(aux == FLAG){
+                state = 7;
+                total = 1;
+            }
+            else{
+                state = 6;
+                total = 0;
+            }
+            break;
+
+            case 10:
+            if(aux == FLAG) state = 11;
+            else{
+                state = 6;
+                total = 0;
+            }
+            break;
         }
     }
-    printf("END OF RECEIVER\n");
+
+    if(tentat == NUMTRIES) return -1;
+
     (void) signal(SIGALRM, SIG_IGN);
     STOP = FALSE;
     tentat = 0;
@@ -848,27 +892,38 @@ int llwrite(char* buf, int bufSize)
     totalwr = transmitter_information_write(buf, bufSize);  
     printf("Transmitter write ok: (totalwr) %d\n", totalwr);  
     TOTALWRITE_TRANS += totalwr;
-    sleep(1);
-
-    totalread = transmitter_information_read();
-    printf("Transmitter read ok: (totalread) %d\n", totalread);  
-    TOTALREAD_TRANS += totalread;
-    sleep(1);
-
-    //TIMEOUT retrans
     /*if(STOP == FALSE){
         if(tentat == NUMTRIES){
             llclose(TRUE);
             return -1;
         }
-        else return llwrite(buf, bufSize);
-    }*/
-
+        else{
+            sleep(1);
+            return llwrite(buf, bufSize);
+        }
+    }
+    sleep(1);
+    */
+    totalread = transmitter_information_read();
+    printf("Transmitter read ok: (totalread) %d\n", totalread);  
+    TOTALREAD_TRANS += totalread;
+    /*if(STOP == FALSE){
+        if(tentat == NUMTRIES){
+            llclose(TRUE);
+            return -1;
+        }
+        else{
+            sleep(1);
+            return llwrite(buf, bufSize);
+        }
+    }
+    sleep(1);
+    */
     //REJ retrans
     if(totalread == 0){
         rej_count_trans++;
         (void) signal(SIGALRM, SIG_IGN);
-        tentat = 0;
+        sleep(1);
         return llwrite(buf, bufSize);
     }
     
@@ -900,28 +955,41 @@ int llread(char* packet)
     totalread = receiver_information_read(packet);
     printf("Receiver read ok: (totalread) %d\n", totalread);  
     TOTALREAD_REC += totalread;
-
-    totalwr = receiver_information_write(packet);
-    printf("Receiver write ok: (totalwr) %d\n", totalwr);  
-    TOTALWRITE_REC += totalwr;
-
-    //TIMEOUT
     /*if(STOP == FALSE){
         if(tentat == NUMTRIES){
             llclose(TRUE);
             return -1;
         }
         else{
-            bzero(packet, totalread);
+            bzero(packet, MAX_PAYLOAD_SIZE+7);
+            sleep(1);
             return llread(packet);
         }        
-    }*/
+    }
+    sleep(1);
+    */
+    totalwr = receiver_information_write(packet);
+    printf("Receiver write ok: (totalwr) %d\n", totalwr);  
+    TOTALWRITE_REC += totalwr;
+    /*if(STOP == FALSE){
+        if(tentat == NUMTRIES){
+            llclose(TRUE);
+            return -1;
+        }
+        else{
+            bzero(packet, MAX_PAYLOAD_SIZE+7);
+            sleep(1);
+            return llread(packet);
+        }        
+    }
+    sleep(1);
+    */
     //REJ
     if(totalread == 0){
-        (void) signal(SIGALRM, SIG_IGN);
         rej_count_rec++;
-        tentat = 0;
+        (void) signal(SIGALRM, SIG_IGN);
         bzero(packet, MAX_PAYLOAD_SIZE + 7);
+        sleep(1);
         return llread(packet);
     }
 
@@ -938,13 +1006,32 @@ int llread(char* packet)
 
 int llclose(int showStatistics)
 {
-    if(tx == 1) termination_trans();
-    else if(rx == 1) termination_rec();
+    int check_tx, check_rx;
 
     if(tcsetattr(fd,TCSANOW,&oldtio) == -1){
         perror("tcsetattr");
         exit(-1);
     }
+
+    if(tx == 1) check_tx = termination_trans();
+    else if(rx == 1) check_rx = termination_rec();
+
+    if(check_tx == -1 || check_rx == -1){
+        if(showStatistics == TRUE && tx == 1){
+            printf("STATISTICS OF TRANSMITTER:\n");
+            printf("Number of bytes sent: %d\n", TOTALWRITE_TRANS);
+            printf("Number of frames confirmed: %d\n", rr_count_trans);
+            printf("Number of frames rejected: %d\n", rej_count_trans);
+        }
+        else if(showStatistics == TRUE && rx == 1){
+            printf("STATISTICS OF RECEIVER:\n");
+            printf("Number of bytes received: %d\n", TOTALREAD_REC);
+            printf("Number of frames confirmed: %d\n", rr_count_rec);
+            printf("Number of frames rejected: %d\n", rej_count_rec);
+        }
+        close(fd);
+        return -1;
+    } 
 
     if(showStatistics == TRUE && tx == 1){
         printf("STATISTICS OF TRANSMITTER:\n");
