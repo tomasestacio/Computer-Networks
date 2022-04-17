@@ -15,14 +15,14 @@
 // Opens a conection using the "port" parameters defined in struct linkLayer, returns "-1" on error and "1" on sucess
 
 int get_baud(int baud);
-int establishment_trans(); //returns 1 if everything goes well, -1 if error -> include in llwrite
-int establishment_rec(); //returns 1 if everything goes well, -1 if error -> include in llread
+int establishment_trans(); //returns 1 if everything goes well, -1 if error
+int establishment_rec(); //returns 1 if everything goes well, -1 if error
 unsigned char informationcheck(); //returns the control flag for the transmitter of the information packet
 unsigned char confirmationcheck(); //returns the control flag for the receiver of the information packet
-int transmitter_information_write(char* buf, int bufSize); //stuffing included, returns size of trama, if error returns -1
-int transmitter_information_read(); //returns size of trama readed, -1 if error
-int receiver_information_read(); //returns size of trama readed, -1 if error
-int receiver_information_write(char* packet); //returns size of trama, if error returns -1
+int transmitter_information_write(char* buf, int bufSize); //stuffing included, returns size of buffer if everything goes ok, if error returns 0
+int transmitter_information_read(); //returns 1 if everything is ok, 0 if REJ was sent and -1 if timeout was activated during the read
+int receiver_information_read(); //returns size of packet if everything is ok, 0 if REJ was sent and -1 if timeout was activated during the read
+int receiver_information_write(char* packet); //returns 1, if error returns 0
 int termination_trans(); //returns 1 if everything goes well, -1 if error
 int termination_rec(); //returns 1 if everything goes well, -1 if error
 
