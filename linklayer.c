@@ -40,7 +40,7 @@ unsigned char BCC2_final = 0x00;
 volatile int STOP=FALSE;
 
 void control_alarm(){
-  printf("TENTATIVA: %d\n", tentat+1);
+  printf("TIMEOUT #%d\n", tentat+1);
   tentat++;
   STOP = FALSE;
   return;
@@ -131,7 +131,10 @@ int llopen(linkLayer connectionParameters)
 
         int check = establishment_trans();
         if(check == 1) return 1;
-        else return -1;
+        else{
+            printf("Error trying to open the connection (tx)\n");
+            return -1;
+        }
     }
     else if(connectionParameters.role == 1) //receiver
     {
@@ -169,7 +172,10 @@ int llopen(linkLayer connectionParameters)
 
         int check = establishment_rec();
         if(check == 1) return 1;
-        else return -1;
+        else{
+            printf("Error trying to open the connection (rx)\n");
+            return -1;
+        }
     }
     else return -1;
 }
@@ -1033,29 +1039,18 @@ int llclose(int showStatistics)
     if(tx == 1) check_tx = termination_trans();
     else if(rx == 1) check_rx = termination_rec();
 
-    if(check_tx == -1 || check_rx == -1){
-        if(showStatistics == TRUE && tx == 1){
-            printf("STATISTICS OF TRANSMITTER:\n");
-            printf("Timeout defined: %d seconds\n", TIMEOUT);
-            printf("Number of tries defined before closing: %d tries\n", NUMTRIES);
-            printf("Number of bytes sent: %d bytes\n", TOTALWRITE_TRANS);
-            printf("Number of frames confirmed: %d frames\n", rr_count_trans);
-            printf("Number of frames rejected: %d frames\n", rej_count_trans);
-            printf("Number of frames timed out: %d frames\n", resent_write);
-        }
-        else if(showStatistics == TRUE && rx == 1){
-            printf("STATISTICS OF RECEIVER:\n");
-            printf("Timeout: %d seconds\n", TIMEOUT);
-            printf("Number of tries defined before closing: %d tries\n", NUMTRIES);
-            printf("Number of bytes received: %d bytes\n", TOTALREAD_REC);
-            printf("Number of frames confirmed: %d frames\n", rr_count_rec);
-            printf("Number of frames rejected: %d frames\n", rej_count_rec);
-            printf("Number of frames timed out: %d frames\n", resent_read);
-        }
+    if(check_tx == -1){
+        printf("Error closing the connection (tx)\n");
 
         close(fd);
         return -1;
     } 
+    else if(check_rx == -1){
+        printf("Error closing the connection (rx)\n");
+
+        close(fd);
+        return -1;
+    }
 
     if(showStatistics == TRUE && tx == 1){
         printf("STATISTICS OF TRANSMITTER:\n");
