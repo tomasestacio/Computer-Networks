@@ -192,7 +192,7 @@ int establishment_trans()
     while(tentat < NUMTRIES && state != 5)
     {   
         if(STOP == FALSE){
-            alarm(3);
+            alarm(TIMEOUT);
             STOP = TRUE;
             res = write(fd, inicio, 5);
             printf("SET: 0x%X | 0x%X | 0x%X | 0x%X | 0x%X\n", inicio[0], inicio[1], inicio[2], inicio[3], inicio[4]);
@@ -443,7 +443,7 @@ int termination_trans()
     while(tentat < NUMTRIES && state != 6)
     {
         if(STOP == FALSE){
-            alarm(3);
+            alarm(TIMEOUT);
             STOP = TRUE;
             res = write(fd, trama, 5);
             printf("DISC: 0x%X | 0x%X | 0x%X | 0x%X | 0x%X\n", trama[0], trama[1], trama[2], trama[3], trama[4]);
@@ -540,7 +540,7 @@ int establishment_rec()
     while(tentat < NUMTRIES && state != 6)
     {   
         if(STOP == FALSE){
-            alarm(3);
+            alarm(TIMEOUT);
             STOP = TRUE;
         }
 
@@ -771,7 +771,7 @@ int termination_rec()
     while(tentat < NUMTRIES && state != 11)
     {
         if(STOP == FALSE){
-            alarm(3);
+            alarm(TIMEOUT);
             STOP = TRUE;
         }
 
@@ -906,7 +906,7 @@ int llwrite(char* buf, int bufSize)
     (void) signal(SIGALRM, control_alarm);
 
     if(STOP == FALSE){
-        alarm(3);
+        alarm(TIMEOUT);
         STOP = TRUE;
     }
 
@@ -971,7 +971,7 @@ int llread(char* packet)
     (void) signal(SIGALRM, control_alarm);
 
     if(STOP == FALSE){
-        alarm(3);
+        alarm(TIMEOUT);
         STOP = TRUE;
     }
     totalread = receiver_information_read(packet);
