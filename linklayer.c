@@ -28,8 +28,8 @@ int rej_count_rec=0;
 int rr_count_trans=0;
 int rr_count_rec=0;
 int error_count=0;
-int resent_read=1;
-int resent_write=1;
+int resent_read=0;
+int resent_write=0;
 
 int NUMTRIES;
 int TIMEOUT;
@@ -915,10 +915,12 @@ int llwrite(char* buf, int bufSize)
     TOTALWRITE_TRANS += totalwr;
     if(STOP == FALSE){
         if(tentat == NUMTRIES){
+            resent_write++;
             llclose(TRUE);
             return -1;
         }
         else{
+            resent_write++;
             //sleep(1);
             return llwrite(buf, bufSize);
         }
@@ -929,6 +931,7 @@ int llwrite(char* buf, int bufSize)
     TOTALREAD_TRANS += totalread;
     if(STOP == FALSE && totalread == -1){
         if(tentat == NUMTRIES){
+            resent_write++;
             llclose(TRUE);
             return -1;
         }
@@ -976,6 +979,7 @@ int llread(char* packet)
     TOTALREAD_REC += totalread;
     if(STOP == FALSE && totalread == -1){
         if(tentat == NUMTRIES){
+            resent_read++;
             llclose(TRUE);
             return -1;
         }
@@ -996,10 +1000,12 @@ int llread(char* packet)
     TOTALWRITE_REC += totalwr;
     if(STOP == FALSE){
         if(tentat == NUMTRIES){
+            resent_read++;
             llclose(TRUE);
             return -1;
         }
         else{
+            resent_read++;
             return llread(packet);
         }        
     }
@@ -1041,7 +1047,7 @@ int llclose(int showStatistics)
             printf("STATISTICS OF RECEIVER:\n");
             printf("Timeout: %d seconds\n", TIMEOUT);
             printf("Number of tries defined before closing: %d tries\n", NUMTRIES);
-            printf("Number of bytes received (just the size of buffer): %d bytes\n", TOTALREAD_REC);
+            printf("Number of bytes received: %d bytes\n", TOTALREAD_REC);
             printf("Number of frames confirmed: %d frames\n", rr_count_rec);
             printf("Number of frames rejected: %d frames\n", rej_count_rec);
             printf("Number of frames timed out: %d frames\n", resent_read);
@@ -1064,7 +1070,7 @@ int llclose(int showStatistics)
         printf("STATISTICS OF RECEIVER:\n");
         printf("Timeout defined: %d seconds\n", TIMEOUT);
         printf("Number of tries defined before closing: %d tries\n", NUMTRIES);
-        printf("Number of bytes received (just the size of buffer): %d bytes\n", TOTALREAD_REC);
+        printf("Number of bytes received: %d bytes\n", TOTALREAD_REC);
         printf("Number of frames confirmed: %d frames\n", rr_count_rec);
         printf("Number of frames rejected: %d frames\n", rej_count_rec);
         printf("Number of frames timed out: %d frames\n", resent_read);
