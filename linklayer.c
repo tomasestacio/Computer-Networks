@@ -15,11 +15,21 @@ struct termios oldtio, newtio;
 int tx=0;
 int rx=0; 
 int tentat=0;
+int tentatREJ=0;
 int RETRANS=0;
 int status=0;
 static int fd;
-int Ns=0;
-int Nr=1;
+
+int duplicado=0;
+int Ns_anterior_trans=1;
+int Ns_trans=0;
+int Nr_anterior_rec=0;
+int Nr_rec=1;
+
+int Ns_anterior_rec=1;
+int Ns_rec=0;
+int Nr_anterior_trans=0;
+int Nr_trans=1;
 //statistics counters
 int TOTALREAD_TRANS, TOTALWRITE_TRANS;
 int TOTALREAD_REC, TOTALWRITE_REC;
@@ -28,8 +38,9 @@ int rej_count_rec=0;
 int rr_count_trans=0;
 int rr_count_rec=0;
 int error_count=0;
-int resent_read=0;
 int resent_write=0;
+int dup_count_trans=0;
+int dup_count_rec=0;
 
 int NUMTRIES;
 int TIMEOUT;
@@ -46,7 +57,7 @@ void control_alarm(){
   return;
 }
 
-int get_baud(int baud)
+speed_t get_baud(int baud)
 {
     switch (baud) {
     case 9600:
@@ -86,13 +97,12 @@ int get_baud(int baud)
     case 4000000:
         return B4000000;
     default: 
-        return -1;
+        return B0;
     }
 }
 
 int llopen(linkLayer connectionParameters)
 {
-    int baudrate = get_baud(connectionParameters.baudRate);
     NUMTRIES = connectionParameters.numTries;
     TIMEOUT = connectionParameters.timeOut;
     if(connectionParameters.role == 0) //transmitter
@@ -112,7 +122,7 @@ int llopen(linkLayer connectionParameters)
 
         bzero(&newtio, sizeof(newtio));
 
-        newtio.c_cflag = baudrate | CS8 | CLOCAL | CREAD;
+        newtio.c_cflag = get_baud(connectionParameters.baudRate) | CS8 | CLOCAL | CREAD;
         newtio.c_iflag = IGNPAR;
         newtio.c_oflag = 0;
 
@@ -153,7 +163,7 @@ int llopen(linkLayer connectionParameters)
 
         bzero(&newtio, sizeof(newtio));
 
-        newtio.c_cflag = baudrate | CS8 | CLOCAL | CREAD;
+        newtio.c_cflag = get_baud(connectionParameters.baudRate) | CS8 | CLOCAL | CREAD;
         newtio.c_iflag = IGNPAR;
         newtio.c_oflag = 0;
 
@@ -191,7 +201,7 @@ int establishment_trans()
     inicio[0] = FLAG;
     inicio[1] = A_TRANS;
     inicio[2] = SET;
-    inicio[3] = A_TRANS^SET;
+    inicio[3] = (A_TRANS^SET);
     inicio[4] = FLAG;
 
     (void) signal(SIGALRM, control_alarm);
@@ -203,6 +213,7 @@ int establishment_trans()
             res = write(fd, inicio, 5);
             printf("SET: 0x%X | 0x%X | 0x%X | 0x%X | 0x%X\n", inicio[0], inicio[1], inicio[2], inicio[3], inicio[4]);
         }
+
         res = read(fd, &aux, 1);
         total += res;
 
@@ -238,7 +249,7 @@ int establishment_trans()
             break;
             
             case 3:
-            if(aux == A_REC^UA) state = 4;
+            if(aux == (A_REC^UA)) state = 4;
             else if(aux == FLAG){
                 state = 1;
                 total = 1;
@@ -265,12 +276,13 @@ int establishment_trans()
         tentat = 0;
         return 1;
     } 
+
     else return -1; 
 }
 
 unsigned char informationcheck()
 {
-    if(Ns == 0) return 0x00;
+    if(Ns_trans == 0) return 0x00;
     else return 0x02;
 }
 
@@ -283,7 +295,7 @@ int transmitter_information_write(char* buf, int bufSize)
     unsigned char aux;
     unsigned char BCC2 = 0x00;
     int j = 3;
-    //stuffing (FLAG -> ESC e FLAG^0x20 ; ESC -> ESC e ESC^0x20)
+    //stuffing (FLAG -> ESC e FLAG^0x20 ; ESC -> ESC e ESC^0x20) 
 
     trama[0] = FLAG;
     trama[1] = A_TRANS;
@@ -313,25 +325,21 @@ int transmitter_information_write(char* buf, int bufSize)
     if(BCC2 == FLAG){
         trama[j] = ESC;
         j++;
-        trama[j] = FLAG^0x20;
+        trama[j] = (FLAG^0x20);
     }
     else if(BCC2 == ESC){
         trama[j] = ESC;
         j++;
-        trama[j] = ESC^0x20;
+        trama[j] = (ESC^0x20);
     }
     else trama[j] = BCC2;
     j++;
     trama[j] = FLAG;
 
-    while(tentat < NUMTRIES)
-    {
-        total = write(fd, trama, j+1);
-        if(total != 0) break;
-        else return 0;
-    }
+    total = write(fd, trama, j+1);
+    if(total != 0) return bufSize;
+    else return 0;
 
-    return bufSize;
 }
 
 int transmitter_information_read()
@@ -341,10 +349,10 @@ int transmitter_information_read()
     int res = 0;
     int total = 0;
 
-    while(tentat < NUMTRIES && state != 7)
+    while(state != 6)
     {
         res = read(fd, &aux, 1);
-        if(res == 0) return -1;
+        if(res == 0) return 0;
         total += res;
         switch(state){
             case 0:
@@ -365,7 +373,21 @@ int transmitter_information_read()
             break;
 
             case 2:
-            if(aux == 0x01 || aux == 0x21) state = 4;
+            if(aux == 0x01 || aux == 0x21){
+                if(aux == 0x01 && Nr_anterior_trans == 0){
+                    duplicado = 1;
+                    state = 3;
+                }
+                else if(aux == 0x21 && Nr_anterior_trans == 1){
+                    duplicado = 1;
+                    state = 3;
+                }
+                else state = 3;
+            }
+            else if(aux == 0x05 || aux == 0x25){
+                state = 4;
+                RETRANS = 1;
+            }
             else if(aux == FLAG){
                 state = 1;
                 total = 1;
@@ -377,10 +399,7 @@ int transmitter_information_read()
             break;
 
             case 3:
-            if(aux == 0x05 || aux == 0x25){
-                state = 5;
-                RETRANS = 1;
-            } 
+            if(aux == (A_REC^0x01) || aux == (A_REC^0x21)) state = 5;
             else if(aux == FLAG){
                 state = 1;
                 total = 1;
@@ -392,7 +411,7 @@ int transmitter_information_read()
             break;
 
             case 4:
-            if(aux == A_REC^0x01 || aux == A_REC^0x21) state = 6;
+            if(aux == (A_REC^0x05) || aux == (A_REC^0x25)) state = 5;
             else if(aux == FLAG){
                 state = 1;
                 total = 1;
@@ -404,28 +423,16 @@ int transmitter_information_read()
             break;
 
             case 5:
-            if(aux == A_REC^0x05 || aux == A_REC^0x25) state = 6;
-            else if(aux == FLAG){
-                state = 1;
-                total = 1;
-            }
-            else{
-                state = 0;
-                total = 0;
-            }
-            break;
-
-            case 6:
-            if(aux == FLAG) state = 7;
+            if(aux == FLAG) state = 6;
             else{
                 state = 0;
                 total = 0;
             }
             break;
         }
-        if(RETRANS == 1 && state == 7){
+        if(RETRANS == 1 && state == 6){
             RETRANS = 0;
-            return 0;
+            return -1;
         }
     }
     return 1;
@@ -442,10 +449,10 @@ int termination_trans()
     trama[0] = FLAG;
     trama[1] = A_TRANS;
     trama[2] = DISC;
-    trama[3] = A_TRANS^DISC;
+    trama[3] = (A_TRANS^DISC);
     trama[4] = FLAG;
 
-    (void) signal(SIGALRM, control_alarm);
+    //(void) signal(SIGALRM, control_alarm);
     while(tentat < NUMTRIES && state != 6)
     {
         if(STOP == FALSE){
@@ -457,6 +464,8 @@ int termination_trans()
 
         if(state != 5){
             res = read(fd, &aux, 1);
+            //printf("aux: 0x%X\n", aux);
+            if(res == 0) return -1;
             total += res;
         }
         
@@ -491,7 +500,7 @@ int termination_trans()
             break;
 
             case 3:
-            if(aux == A_REC^DISC) state = 4;
+            if(aux == (A_REC^DISC)) state = 4;
             else if(aux == FLAG){
                 state = 1;
                 total = 1;
@@ -512,7 +521,7 @@ int termination_trans()
 
             case 5:
             trama[2] = UA;
-            trama[3] = A_TRANS^UA;
+            trama[3] = (A_REC^UA);
             res = write(fd, trama, 5);
             printf("UA: 0x%X | 0x%X | 0x%X | 0x%X | 0x%X\n", trama[0], trama[1], trama[2], trama[3], trama[4]);
             if(res == 5) state = 6;
@@ -533,25 +542,21 @@ int establishment_rec()
     int state = 0;
     int total = 0;
     int res = 0; 
+    int count = 0;
     unsigned char inicio[5];
     unsigned char aux;
 
     inicio[0] = FLAG;
     inicio[1] = A_REC;
     inicio[2] = UA;
-    inicio[3] = A_REC^UA;
+    inicio[3] = (A_REC^UA);
     inicio[4] = FLAG;
 
-    (void) signal(SIGALRM, control_alarm);
-    while(tentat < NUMTRIES && state != 6)
+    while(state != 6)
     {   
-        if(STOP == FALSE){
-            alarm(TIMEOUT);
-            STOP = TRUE;
-        }
-
-        if(total != 5){
+        if(state != 5){
             res = read(fd, &aux, 1);
+            if(res == 0) return -1;
             total += res;
         }
         
@@ -587,7 +592,7 @@ int establishment_rec()
             break;
             
             case 3:
-            if(aux == A_TRANS^SET) state = 4;
+            if(aux == (A_TRANS^SET)) state = 4;
             else if(aux == FLAG){
                 state = 1;
                 total = 1;
@@ -616,23 +621,19 @@ int establishment_rec()
         }
     }
 
-    if(state == 6){
-        (void) signal(SIGALRM, SIG_IGN); 
-        STOP = FALSE;
-        tentat = 0;
-        return 1;
-    }
+    if(state == 6) return 1;
+
     else return -1;
 }
 
 unsigned char confirmationcheck()
 {
     if(BCC2_inicial == BCC2_final){
-        if(Nr == 1) return 0x21;
+        if(Nr_rec == 1) return 0x21;
         else return 0x01;
     } 
     else{
-        if(Nr == 1) return 0x25;
+        if(Nr_rec == 1) return 0x25;
         else return 0x05;
     }
 }
@@ -648,10 +649,10 @@ int receiver_information_read(char* packet)
     BCC2_final = 0x00;
     BCC2_inicial = 0x00;
 
-    while(tentat < NUMTRIES && state != 5)
+    while(state != 5)
     {
         res = read(fd, &aux, 1);
-        if(res == 0) return -1;
+        if(res == 0) return 0;
         total += res;
         switch(state){
             case 0:
@@ -672,7 +673,17 @@ int receiver_information_read(char* packet)
             break;
 
             case 2:
-            if(aux == 0x00 || aux == 0x02) state = 3;
+            if(aux == 0x00 || aux == 0x02){
+                if(aux == 0x00 && Ns_anterior_rec == 0){
+                    duplicado = 1;
+                    return 0;
+                }   
+                else if(aux == 0x02 && Ns_anterior_rec == 1){
+                    duplicado = 1;
+                    return 0;
+                }
+                else state = 3;
+            }
             else if(aux == FLAG){
                 state = 1;
                 total = 1;
@@ -736,7 +747,7 @@ int receiver_information_read(char* packet)
     }
 
     if(BCC2_inicial == BCC2_final) return j;
-    else return 0;
+    else return -1;
 
 }
 
@@ -748,16 +759,15 @@ int receiver_information_write(char* packet)
     trama[0] = FLAG;
     trama[1] = A_REC;
     trama[2] = confirmationcheck(packet);
-    trama[3] = trama[1]^trama[2];
+    if(duplicado == 1 && trama[2] == 0x01) trama[2] = 0x21;
+    else if(duplicado == 1 && trama[2] == 0x21) trama[2] = 0x01;
+    trama[3] = (trama[1]^trama[2]);
     trama[4] = FLAG;
 
-    while(tentat < NUMTRIES){
-        total = write(fd, trama, 5);
-        if(total == 5) break;
-        else return 0;
-    }
+    total = write(fd, trama, 5);
+    if(total == 5) return 1;
+    else return 0;
 
-    return 1;
 }
 
 int termination_rec()
@@ -770,19 +780,14 @@ int termination_rec()
     trama[0] = FLAG;
     trama[1] = A_REC;
     trama[2] = DISC;
-    trama[3] = A_REC^DISC;
+    trama[3] = (A_REC^DISC);
     trama[4] = FLAG;
 
-    (void) signal(SIGALRM, control_alarm);
-    while(tentat < NUMTRIES && state != 11)
-    {
-        if(STOP == FALSE){
-            alarm(TIMEOUT);
-            STOP = TRUE;
-        }
-
+    while(state != 11){
         if(state != 5){
             res = read(fd, &aux, 1);
+            if(res == 0) return -1;
+            //printf("AUX: 0x%X\n", aux);
             total += res;
         }
 
@@ -817,7 +822,7 @@ int termination_rec()
             break;
 
             case 3:
-            if(aux == A_TRANS^DISC) state = 4;
+            if(aux == (A_TRANS^DISC)) state = 4;
             else if(aux == FLAG){
                 state = 1;
                 total = 1;
@@ -873,7 +878,7 @@ int termination_rec()
             break;
 
             case 9:
-            if(aux == A_TRANS^UA) state = 10;
+            if(aux == (A_REC^UA)) state = 10;
             else if(aux == FLAG){
                 state = 7;
                 total = 1;
@@ -894,11 +899,6 @@ int termination_rec()
         }
     }
 
-    if(tentat == NUMTRIES) return -1;
-
-    (void) signal(SIGALRM, SIG_IGN);
-    STOP = FALSE;
-    tentat = 0;
     return 1;
 }
 
@@ -922,11 +922,12 @@ int llwrite(char* buf, int bufSize)
     if(STOP == FALSE){
         if(tentat == NUMTRIES){
             resent_write++;
-            llclose(TRUE);
+            //llclose(TRUE);
             return -1;
         }
         else{
             resent_write++;
+            tentatREJ = 0;
             //sleep(1);
             return llwrite(buf, bufSize);
         }
@@ -935,34 +936,61 @@ int llwrite(char* buf, int bufSize)
     totalread = transmitter_information_read();
     //printf("Transmitter read ok: (totalread) %d\n", totalread);  
     TOTALREAD_TRANS += totalread;
-    if(STOP == FALSE && totalread == -1){
+    if(STOP == FALSE && totalread == 0){
         if(tentat == NUMTRIES){
             resent_write++;
-            llclose(TRUE);
+            //llclose(TRUE);
             return -1;
         }
         else{
             resent_write++;
+            tentatREJ = 0;
             //sleep(1);
             return llwrite(buf, bufSize);
         }
     }
-    
+
     //REJ retrans
-    if(totalread == 0){
+    if(totalread == -1){
         rej_count_trans++;
         (void) signal(SIGALRM, SIG_IGN);
-        //sleep(1);
-        return llwrite(buf, bufSize);
+        STOP = FALSE;
+        tentatREJ++;
+        if(tentatREJ == NUMTRIES){
+            //llclose(TRUE);
+            return -1;
+        }
+        else return llwrite(buf, bufSize);
     }
-    
-    (void) signal(SIGALRM, SIG_IGN);
+
+    if(duplicado == 1){
+        dup_count_trans++;
+        duplicado = 0;
+    } 
+
+    if(Nr_trans == 0){
+        Nr_anterior_trans = 0;
+        Nr_trans = 1;
+    }
+    else{
+        Nr_anterior_trans = 1;
+        Nr_trans = 0;
+    }
+
+    if(Ns_trans == 0){
+        Ns_anterior_trans = 0;
+        Ns_trans = 1;
+    } 
+    else{
+        Ns_anterior_trans = 1;
+        Ns_trans = 0;
+    }
+
     rr_count_trans++;
+    (void) signal(SIGALRM, SIG_IGN);
+    tentatREJ = 0;
     tentat = 0;
     STOP = FALSE;
-    if(Ns == 0) Ns = 1;
-    else if(Ns == 1) Ns = 0;
-
     return totalwr;
 
 }
@@ -974,54 +1002,58 @@ int llread(char* packet)
 
     if(packet == NULL) return -1;
 
-    (void) signal(SIGALRM, control_alarm);
-
-    if(STOP == FALSE){
-        alarm(TIMEOUT);
-        STOP = TRUE;
-    }
     totalread = receiver_information_read(packet);
-    //printf("Receiver read ok: (totalread) %d\n", totalread);  
+    //printf("Receiver read ok: (totalread) %d\n", totalread);
     TOTALREAD_REC += totalread;
-    if(STOP == FALSE && totalread == -1){
-        if(tentat == NUMTRIES){
-            resent_read++;
-            llclose(TRUE);
-            return -1;
-        }
-        else{
-            resent_read++;
-            return llread(packet);
-        }        
+    if(totalread == 0 && duplicado == 0){
+        printf("Receiver didn't read nothing, closing connection...\n");
+        return -1;        
     }
     //REJ
-    else if(totalread == 0){
+    else if(totalread == -1){
         rej_count_rec++;
-        (void) signal(SIGALRM, SIG_IGN);
-        return llread(packet);
+        tentatREJ++;
+        if(tentatREJ == NUMTRIES){
+            //llclose(TRUE);
+            return -1;
+        }
+        else return llread(packet);
+    }
+    //frame duplicada
+    if(totalread == 0 && duplicado == 1){
+        dup_count_rec++;
+        duplicado = 0;
     }
     
     totalwr = receiver_information_write(packet);
     //printf("Receiver write ok: (totalwr) %d\n", totalwr);  
     TOTALWRITE_REC += totalwr;
-    if(STOP == FALSE){
-        if(tentat == NUMTRIES){
-            resent_read++;
-            llclose(TRUE);
-            return -1;
-        }
-        else{
-            resent_read++;
-            return llread(packet);
-        }        
+
+    if(totalwr == 0){
+        printf("Error responding to frame (rx)...\n");
+        return -1;
     }
 
-    (void) signal(SIGALRM, SIG_IGN);
+    if(Ns_rec == 0){
+        Ns_anterior_rec = 0;
+        Ns_rec = 1;
+    }
+    else{
+        Ns_anterior_rec = 1;
+        Ns_rec = 0;
+    }
+
+    if(Nr_rec == 0){
+        Nr_anterior_rec = 0;
+        Nr_rec = 1;
+    }
+    else{
+        Nr_anterior_rec = 1;
+        Nr_rec = 0;
+    }
+
     rr_count_rec++;
-    tentat = 0;
-    STOP = FALSE;
-    if(Nr == 0) Nr = 1;
-    else if(Nr == 1) Nr = 0;
+    tentatREJ = 0;
 
     return totalread;
 
@@ -1039,18 +1071,9 @@ int llclose(int showStatistics)
     if(tx == 1) check_tx = termination_trans();
     else if(rx == 1) check_rx = termination_rec();
 
-    if(check_tx == -1){
-        printf("Error closing the connection (tx)\n");
-
-        close(fd);
-        return -1;
-    } 
-    else if(check_rx == -1){
-        printf("Error closing the connection (rx)\n");
-
-        close(fd);
-        return -1;
-    }
+    if(check_tx == -1) printf("Error closing the connection (tx)\n");
+    
+    else if(check_rx == -1) printf("Error closing the connection (rx)\n");
 
     if(showStatistics == TRUE && tx == 1){
         printf("STATISTICS OF TRANSMITTER:\n");
@@ -1059,7 +1082,8 @@ int llclose(int showStatistics)
         printf("Number of bytes sent : %d bytes\n", TOTALWRITE_TRANS);
         printf("Number of frames confirmed: %d frames\n", rr_count_trans);
         printf("Number of frames rejected: %d frames\n", rej_count_trans);
-        printf("Number of frames timed out: %d frames\n", resent_write);
+        printf("NUmber of frames duplicated: %d frames\n", dup_count_trans);
+        printf("Number of tries before assuming error: %d tries\n", resent_write);
     }
     else if(showStatistics == TRUE && rx == 1){
         printf("STATISTICS OF RECEIVER:\n");
@@ -1068,7 +1092,7 @@ int llclose(int showStatistics)
         printf("Number of bytes received: %d bytes\n", TOTALREAD_REC);
         printf("Number of frames confirmed: %d frames\n", rr_count_rec);
         printf("Number of frames rejected: %d frames\n", rej_count_rec);
-        printf("Number of frames timed out: %d frames\n", resent_read);
+        printf("Number of frames duplicated: %d frames\n", dup_count_rec);
     }
     //REMINDER: final nr of bytes is different from the size of the picture because the protocok is to add one byte to each frame transmitted7
     close(fd);
