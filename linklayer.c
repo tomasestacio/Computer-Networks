@@ -1,14 +1,4 @@
 #include "constants.h"
-#include "linklayer.h"
-#include <signal.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/un.h>
-#include <fcntl.h>
-#include <termios.h>
-#include <stdio.h>
-#include <unistd.h>
 
 struct termios oldtio, newtio;
 
@@ -51,10 +41,10 @@ unsigned char BCC2_final = 0x00;
 volatile int STOP=FALSE;
 
 void control_alarm(){
-  printf("TIMEOUT #%d\n", tentat+1);
-  tentat++;
-  STOP = FALSE;
-  return;
+    printf("TIMEOUT #%d\n", tentat+1);
+    tentat++;
+    STOP = FALSE;
+    return;
 }
 
 speed_t get_baud(int baud)
@@ -288,11 +278,11 @@ unsigned char informationcheck()
 
 int transmitter_information_write(char* buf, int bufSize)
 {
-    int res = 0;
-    int state = 0;
+    //int res = 0;          //unused
+    //int state = 0;        //unused
     int total = 0;
     unsigned char trama[2*bufSize + 7];
-    unsigned char aux;
+    //unsigned char aux;    //unused
     unsigned char BCC2 = 0x00;
     int j = 3;
     //stuffing (FLAG -> ESC e FLAG^0x20 ; ESC -> ESC e ESC^0x20) 
@@ -542,7 +532,7 @@ int establishment_rec()
     int state = 0;
     int total = 0;
     int res = 0; 
-    int count = 0;
+    //int count = 0;        //unused
     unsigned char inicio[5];
     unsigned char aux;
 
@@ -1061,12 +1051,11 @@ int llread(char* packet)
 
 int llclose(int showStatistics)
 {
+    printf("\nllclose() was called\n");
+
     int check_tx, check_rx;
 
-    if(tcsetattr(fd,TCSANOW,&oldtio) == -1){
-        perror("tcsetattr");
-        exit(-1);
-    }
+    
 
     if(tx == 1) check_tx = termination_trans();
     else if(rx == 1) check_rx = termination_rec();
@@ -1094,6 +1083,11 @@ int llclose(int showStatistics)
         printf("Number of frames rejected: %d frames\n", rej_count_rec);
         printf("Number of frames duplicated: %d frames\n", dup_count_rec);
     }
+    if(tcsetattr(fd,TCSANOW,&oldtio) == -1){
+        perror("tcsetattr");
+        exit(-1);
+    }
+    
     //REMINDER: final nr of bytes is different from the size of the picture because the protocok is to add one byte to each frame transmitted7
     close(fd);
     return 1;
