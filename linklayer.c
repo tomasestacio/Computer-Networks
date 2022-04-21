@@ -1018,6 +1018,7 @@ int llread(char* packet)
     }
     //REJ
     else if(totalread == -1){
+        printf("BCC2 not equal, frame rejected...\n");
         rej_count_rec++;
         tentatREJ++;
         if(tentatREJ == NUMTRIES){
@@ -1062,7 +1063,8 @@ int llread(char* packet)
     rr_count_rec++;
     tentatREJ = 0;
 
-    return totalread;
+    if(totalread < 0) return 0;
+    else return totalread;
 
 }
 
