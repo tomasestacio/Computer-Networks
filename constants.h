@@ -1,18 +1,7 @@
 //constantes hexadecimais
+#include <termios.h>
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
-
-#include "constants.h"
-#include "linklayer.h"
-#include <signal.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/un.h>
-#include <fcntl.h>
-#include <termios.h>
-#include <stdio.h>
-#include <unistd.h>
 
 #define FLAG 0x7E
 #define A_TRANS 0x03
