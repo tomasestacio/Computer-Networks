@@ -40,7 +40,6 @@ int rr_count_rec=0;
 int error_count=0;
 int resent_write=0;
 int dup_count_trans=0;
-int dup_count_rec=0;
 
 int NUMTRIES;
 int TIMEOUT;
@@ -143,6 +142,7 @@ int llopen(linkLayer connectionParameters)
         if(check == 1) return 1;
         else{
             printf("Error trying to open the connection (tx)\n");
+            llclose(FALSE);
             return -1;
         }
     }
@@ -184,6 +184,7 @@ int llopen(linkLayer connectionParameters)
         if(check == 1) return 1;
         else{
             printf("Error trying to open the connection (rx)\n");
+            llclose(FALSE);
             return -1;
         }
     }
@@ -337,7 +338,7 @@ int transmitter_information_write(char* buf, int bufSize)
     trama[j] = FLAG;
 
     total = write(fd, trama, j+1);
-    if(total != 0) return bufSize;
+    if(total > 0) return bufSize;
     else return 0;
 
 }
@@ -643,6 +644,7 @@ int receiver_information_read(char* packet)
     int j = 0;
     int res = 0;
     int total = 0;
+    int count = 1;
     unsigned char aux;
 
     BCC2_final = 0x00;
@@ -651,7 +653,8 @@ int receiver_information_read(char* packet)
     while(state != 5)
     {
         res = read(fd, &aux, 1);
-        if(res == 0) return 0;
+        if(res == 0 && count != NUMTRIES) count++;
+        else if(res == 0 && count == NUMTRIES) return 0;
         total += res;
         switch(state){
             case 0:
@@ -672,17 +675,7 @@ int receiver_information_read(char* packet)
             break;
 
             case 2:
-            if(aux == 0x00 || aux == 0x02){
-                if(aux == 0x00 && Ns_anterior_rec == 0){
-                    duplicado = 1;
-                    return 0;
-                }   
-                else if(aux == 0x02 && Ns_anterior_rec == 1){
-                    duplicado = 1;
-                    return 0;
-                }
-                else state = 3;
-            }
+            if(aux == 0x00 || aux == 0x02) state = 3;
             else if(aux == FLAG){
                 state = 1;
                 total = 1;
@@ -758,8 +751,6 @@ int receiver_information_write(char* packet)
     trama[0] = FLAG;
     trama[1] = A_REC;
     trama[2] = confirmationcheck(packet);
-    if(duplicado == 1 && trama[2] == 0x01) trama[2] = 0x21;
-    else if(duplicado == 1 && trama[2] == 0x21) trama[2] = 0x01;
     trama[3] = (trama[1]^trama[2]);
     trama[4] = FLAG;
 
@@ -942,7 +933,8 @@ int llwrite(char* buf, int bufSize)
 
     totalread = transmitter_information_read();
     //printf("Transmitter read ok: (totalread) %d\n", totalread);  
-    TOTALREAD_TRANS += totalread;
+    if(totalread > 0) TOTALREAD_TRANS += totalread;
+
     if(STOP == FALSE && totalread == 0){
         if(tentat == NUMTRIES){
             resent_write++;
@@ -998,7 +990,9 @@ int llwrite(char* buf, int bufSize)
     tentatREJ = 0;
     tentat = 0;
     STOP = FALSE;
-    return totalwr;
+    
+    if(totalwr < 0) return 0;
+    else return totalwr;
 
 }
 
@@ -1011,8 +1005,9 @@ int llread(char* packet)
 
     totalread = receiver_information_read(packet);
     //printf("Receiver read ok: (totalread) %d\n", totalread);
-    TOTALREAD_REC += totalread;
-    if(totalread == 0 && duplicado == 0){
+    if(totalread > 0) TOTALREAD_REC += totalread;
+
+    if(totalread == 0){
         printf("Receiver didn't read nothing, closing connection...\n");
         return -1;        
     }
@@ -1026,11 +1021,6 @@ int llread(char* packet)
             return -1;
         }
         else return llread(packet);
-    }
-    //frame duplicada
-    if(totalread == 0 && duplicado == 1){
-        dup_count_rec++;
-        duplicado = 0;
     }
     
     totalwr = receiver_information_write(packet);
@@ -1063,7 +1053,7 @@ int llread(char* packet)
     rr_count_rec++;
     tentatREJ = 0;
 
-    if(totalread < 0) return 0;
+    if(totalread < 0) return -1;
     else return totalread;
 
 }
@@ -1087,7 +1077,7 @@ int llclose(int showStatistics)
         printf("Number of frames confirmed: %d frames\n", rr_count_trans);
         printf("Number of frames rejected: %d frames\n", rej_count_trans);
         printf("NUmber of frames duplicated: %d frames\n", dup_count_trans);
-        printf("Number of tries before assuming error: %d tries\n", resent_write);
+        printf("Number of frames retransmitted: %d frames\n", resent_write);
     }
     else if(showStatistics == TRUE && rx == 1){
         printf("STATISTICS OF RECEIVER:\n");
@@ -1096,7 +1086,6 @@ int llclose(int showStatistics)
         printf("Number of bytes received: %d bytes\n", TOTALREAD_REC);
         printf("Number of frames confirmed: %d frames\n", rr_count_rec);
         printf("Number of frames rejected: %d frames\n", rej_count_rec);
-        printf("Number of frames duplicated: %d frames\n", dup_count_rec);
     }
     //REMINDER: final nr of bytes is different from the size of the picture because the protocol adds one byte to each frame transmitted
 
