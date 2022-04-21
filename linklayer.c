@@ -1,4 +1,14 @@
 #include "constants.h"
+#include "linklayer.h"
+#include <signal.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <stdio.h>
+#include <unistd.h>
 
 struct termios oldtio, newtio;
 
@@ -41,10 +51,10 @@ unsigned char BCC2_final = 0x00;
 volatile int STOP=FALSE;
 
 void control_alarm(){
-    printf("TIMEOUT #%d\n", tentat+1);
-    tentat++;
-    STOP = FALSE;
-    return;
+  printf("TIMEOUT #%d\n", tentat+1);
+  tentat++;
+  STOP = FALSE;
+  return;
 }
 
 speed_t get_baud(int baud)
@@ -278,11 +288,11 @@ unsigned char informationcheck()
 
 int transmitter_information_write(char* buf, int bufSize)
 {
-    //int res = 0;          //unused
-    //int state = 0;        //unused
+    int res = 0;
+    int state = 0;
     int total = 0;
     unsigned char trama[2*bufSize + 7];
-    //unsigned char aux;    //unused
+    unsigned char aux;
     unsigned char BCC2 = 0x00;
     int j = 3;
     //stuffing (FLAG -> ESC e FLAG^0x20 ; ESC -> ESC e ESC^0x20) 
@@ -442,7 +452,7 @@ int termination_trans()
     trama[3] = (A_TRANS^DISC);
     trama[4] = FLAG;
 
-    //(void) signal(SIGALRM, control_alarm);
+    (void) signal(SIGALRM, control_alarm);
     while(tentat < NUMTRIES && state != 6)
     {
         if(STOP == FALSE){
@@ -454,8 +464,6 @@ int termination_trans()
 
         if(state != 5){
             res = read(fd, &aux, 1);
-            //printf("aux: 0x%X\n", aux);
-            if(res == 0) return -1;
             total += res;
         }
         
@@ -532,7 +540,7 @@ int establishment_rec()
     int state = 0;
     int total = 0;
     int res = 0; 
-    //int count = 0;        //unused
+    int count = 1;
     unsigned char inicio[5];
     unsigned char aux;
 
@@ -546,7 +554,8 @@ int establishment_rec()
     {   
         if(state != 5){
             res = read(fd, &aux, 1);
-            if(res == 0) return -1;
+            if(res == 0 && count != NUMTRIES) count++;
+            else if(res == 0 && count == NUMTRIES) return -1;
             total += res;
         }
         
@@ -766,6 +775,7 @@ int termination_rec()
     unsigned char trama[5];
     int state = 0;
     int res, total;
+    int count = 1;
 
     trama[0] = FLAG;
     trama[1] = A_REC;
@@ -776,8 +786,8 @@ int termination_rec()
     while(state != 11){
         if(state != 5){
             res = read(fd, &aux, 1);
-            if(res == 0) return -1;
-            //printf("AUX: 0x%X\n", aux);
+            if(res == 0 && count != NUMTRIES) count++;
+            else if(res == 0 && count == NUMTRIES) return -1;
             total += res;
         }
 
@@ -922,7 +932,14 @@ int llwrite(char* buf, int bufSize)
             return llwrite(buf, bufSize);
         }
     }
-    
+    else if(totalwr == 0){
+        (void) signal(SIGALRM, SIG_IGN);
+        STOP = FALSE;
+        tentat = 0;
+        return -1;
+    }
+
+
     totalread = transmitter_information_read();
     //printf("Transmitter read ok: (totalread) %d\n", totalread);  
     TOTALREAD_TRANS += totalread;
@@ -1051,11 +1068,7 @@ int llread(char* packet)
 
 int llclose(int showStatistics)
 {
-    printf("\nllclose() was called\n");
-
     int check_tx, check_rx;
-
-    
 
     if(tx == 1) check_tx = termination_trans();
     else if(rx == 1) check_rx = termination_rec();
@@ -1083,12 +1096,12 @@ int llclose(int showStatistics)
         printf("Number of frames rejected: %d frames\n", rej_count_rec);
         printf("Number of frames duplicated: %d frames\n", dup_count_rec);
     }
+    //REMINDER: final nr of bytes is different from the size of the picture because the protocol adds one byte to each frame transmitted
+
     if(tcsetattr(fd,TCSANOW,&oldtio) == -1){
         perror("tcsetattr");
         exit(-1);
     }
-    
-    //REMINDER: final nr of bytes is different from the size of the picture because the protocok is to add one byte to each frame transmitted7
     close(fd);
     return 1;
 }
