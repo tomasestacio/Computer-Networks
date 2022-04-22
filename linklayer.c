@@ -1011,9 +1011,13 @@ int llread(char* packet)
         printf("Receiver didn't read nothing, closing connection...\n");
         return -1;        
     }
-    //REJ
-    else if(totalread == -1){
-        printf("BCC2 not equal, frame rejected...\n");
+    
+    totalwr = receiver_information_write(packet);
+    //printf("Receiver write ok: (totalwr) %d\n", totalwr);  
+    TOTALWRITE_REC += totalwr;
+
+    if(totalread == -1 && totalwr != 0){
+        printf("BCC2 not equal, frame rejected, retransmission of same frame...\n");
         rej_count_rec++;
         tentatREJ++;
         if(tentatREJ == NUMTRIES){
@@ -1022,12 +1026,8 @@ int llread(char* packet)
         }
         else return llread(packet);
     }
-    
-    totalwr = receiver_information_write(packet);
-    //printf("Receiver write ok: (totalwr) %d\n", totalwr);  
-    TOTALWRITE_REC += totalwr;
 
-    if(totalwr == 0){
+    else if(totalwr == 0){
         printf("Error responding to frame (rx)...\n");
         return -1;
     }
