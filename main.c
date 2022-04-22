@@ -111,7 +111,8 @@ int main(int argc, char *argv[]) {
                 ll.baudRate = 9600;
                 ll.numTries = 3;
                 ll.timeOut = 3;
-
+                struct timespec startTime;
+		        clock_gettime(CLOCK_REALTIME, &startTime);
                 if(llopen(ll)==-1) {
                         fprintf(stderr, "Could not initialize link layer connection\n");
                         exit(1);
@@ -155,6 +156,11 @@ int main(int argc, char *argv[]) {
             	}
 		
                 llclose(1);
+				struct timespec endTime;
+		        clock_gettime(CLOCK_REALTIME, &endTime);
+		        double sTime = startTime.tv_sec + startTime.tv_nsec*1e-9;
+		        double eTime = endTime.tv_sec + endTime.tv_nsec*1e-9;
+		        printf("Time passed: %.6lf-\n",eTime-sTime);
                 close(file_desc);
                 return 0;
 
