@@ -519,6 +519,7 @@ int termination_trans()
             break;
 
             case 5:
+            trama[1] = A_REC;
             trama[2] = UA;
             trama[3] = (A_REC^UA);
             res = write(fd, trama, 5);
@@ -845,7 +846,7 @@ int termination_rec()
             break;
 
             case 7:
-            if(aux == A_TRANS) state = 8;
+            if(aux == A_REC) state = 8;
             else if(aux == FLAG){
                 state = 7;
                 total = 1;
