@@ -991,7 +991,7 @@ int llwrite(char* buf, int bufSize)
     tentat = 0;
     STOP = FALSE;
     
-    if(totalwr < 0) return 0;
+    if(totalwr < 0) return -1;
     else return totalwr;
 
 }
