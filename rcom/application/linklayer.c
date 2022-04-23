@@ -300,7 +300,7 @@ int transmitter_information_write(char* buf, int bufSize)
 
     trama[0] = FLAG;
     trama[1] = A_TRANS;
-    trama[2] = informationcheck(buf, bufSize);
+    trama[2] = informationcheck();
     for(int i=0; i<bufSize; i++)
     {
         BCC2^=buf[i];
@@ -750,7 +750,7 @@ int receiver_information_write(char* packet)
 
     trama[0] = FLAG;
     trama[1] = A_REC;
-    trama[2] = confirmationcheck(packet);
+    trama[2] = confirmationcheck();
     trama[3] = (trama[1]^trama[2]);
     trama[4] = FLAG;
 
