@@ -1,0 +1,25 @@
+{
+	"folders": [
+		{
+			"name": "Arduino Blink Test",
+			"path": "..\\..\\..\\..\\Documents\\PlatformIO\\Projects\\Arduino Blink Test"
+		},
+		{
+			"name": "RGB LED",
+			"path": "..\\..\\..\\..\\Documents\\PlatformIO\\Projects\\RGB LED"
+		},
+		{
+			"name": "Digital Inputs",
+			"path": "..\\..\\..\\..\\Documents\\PlatformIO\\Projects\\Digital Inputs"
+		},
+		{
+			"name": "Active Buzzer",
+			"path": "..\\..\\..\\..\\Documents\\PlatformIO\\Projects\\Active Buzzer"
+		},
+		{
+			"name": "Passive Buzzer",
+			"path": "..\\..\\..\\..\\Documents\\PlatformIO\\Projects\\Passive Buzzer"
+		}
+	],
+	"settings": {}
+}
