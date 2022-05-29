@@ -1,0 +1,6 @@
+updateimage
+ifconfig eth0 up 172.16.60.254/24
+ifconfig eth1 up 172.16.61.253/24
+route add -net default gw 172.16.61.254
+#route add -net 172.16.2.0/24 gw 172.16.61.254 //question
+route -n

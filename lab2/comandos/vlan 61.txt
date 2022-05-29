@@ -1,0 +1,18 @@
+configure terminal
+interface fastethernet 0/3
+switchport mode access
+switchport access vlan 61
+end
+show running-config fastethernet 0/3
+configure terminal
+interface fastethernet 0/4
+switchport mode access
+switchport access vlan 61
+end
+show running-config fastethernet 0/4
+configure terminal
+interface fastethernet 0/5
+switchport mode access
+switchport access vlan 61
+end
+show running-config fastethernet 0/5

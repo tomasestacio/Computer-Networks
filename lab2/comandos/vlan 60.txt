@@ -1,0 +1,16 @@
+configure terminal
+vlan 60
+end
+show vlan id 60
+configure terminal
+interface fastethernet 0/1
+switchport mode access
+switchport access vlan 60
+end
+show running-config fastethernet 0/1
+configure terminal
+interface fastethernet 0/2
+switchport mode access
+switchport access vlan 60
+end
+show running-config fastethernet 0/2
