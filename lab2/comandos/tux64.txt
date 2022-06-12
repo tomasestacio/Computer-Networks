@@ -1,6 +1,7 @@
 updateimage
-ifconfig eth0 up 172.16.60.254/24
-ifconfig eth1 up 172.16.61.253/24
-route add -net default gw 172.16.61.254
-#route add -net 172.16.2.0/24 gw 172.16.61.254 //question
+sysctl -w net.ipv4.ip_forward=1
+sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=0
+ifconfig eth0 up 172.16.50.254/24
+ifconfig eth1 up 172.16.51.253/24
+route add -net default gw 172.16.51.254
 route -n
