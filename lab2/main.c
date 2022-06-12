@@ -67,6 +67,8 @@ int main(int argc, char **argv){
     if(readResponse(socketfd_control, rd, sizeof(rd)) == -1) return -1;
 
     if(writeFile(socketfd_data, arguments.file_name) == -1) return -1;
+    
+    if(readResponse(socketfd_control, rd, sizeof(rd)) == -1) return -1;
 
     sprintf(command, "quit\r\n");
     if(clientCommand(socketfd_control, command) == -1) return -1;
