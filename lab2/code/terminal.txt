@@ -1,0 +1,5 @@
+gcc *.c -o download
+./download ftp://user:@ftp.up.pt/raspbian/snapshotindex.txt
+./download ftp://user:@ftp.up.pt/mirrors/alpha.gnu.org/xboard/xboard-4.9.0-20160402.tar.gz
+./download ftp://user:@ftp.rnl.tecnico.ulisboa.pt/pub/archlinux/images/v20220401.51758/Arch-Linux-x86_64-basic-20220401.51758.qcow2
+./download ftp://user:@ftp.rnl.tecnico.ulisboa.pt/pub/archlinux/iso/2022.04.05/archlinux-2022.04.05-x86_64.iso.torrent
