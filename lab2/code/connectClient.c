@@ -38,7 +38,7 @@ int client_init(char *ip, int port, int *socketfd){
 }
 
 int clientCommand(int socketfd, char * command){
-    //sends command, returns -1 if error, 0 if closing connection, 1 if command other than closing the connection and well sent
+    //sends command, returns -1 if error, 0 if command other than closing the connection and well sent
     int size;
 
     if((size = write(socketfd, command, strlen(command))) <= 0){
